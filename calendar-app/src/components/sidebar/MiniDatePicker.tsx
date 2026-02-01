@@ -13,6 +13,7 @@ function addMonths(date: Date, amount: number) {
 export default function MiniDatePicker() {
   const selectedDate = useCalendarStore((s) => s.selectedDate);
   const setDate = useCalendarStore((s) => s.setDate);
+  const loadData = useCalendarStore((s) => s.loadData);
 
   const monthStart = startOfMonth(selectedDate);
   const monthLabel = monthStart.toLocaleDateString(undefined, {
@@ -44,7 +45,7 @@ export default function MiniDatePicker() {
       <div className="flex items-center justify-between mb-3">
         <button
           className="rounded-full px-2 py-1 text-xs border text-gray-600 hover:bg-gray-100"
-          onClick={() => setDate(new Date())}
+          onClick={() => loadData({ date: new Date() })}
         >
           Today
         </button>
@@ -99,7 +100,7 @@ export default function MiniDatePicker() {
                   ? "border border-emerald-400 text-emerald-600"
                   : "text-gray-700 hover:bg-gray-100",
               ].join(" ")}
-              onClick={() => setDate(cellDate)}
+              onClick={() => loadData({ date: cellDate })}
             >
               {day}
             </button>

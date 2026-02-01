@@ -1,4 +1,4 @@
-import { TIME_SLOTS, SLOT_HEIGHT } from "../../utils/time";
+import { TIME_SLOTS, SLOT_HEIGHT, GRID_SLOT_COUNT } from "../../utils/time";
 
 export default function TimeColumn() {
   return (
@@ -8,13 +8,13 @@ export default function TimeColumn() {
         style={{ height: 40 }}
         className="border-b bg-white"
       />
-      {TIME_SLOTS.map((time) => (
+      {Array.from({ length: GRID_SLOT_COUNT }, (_, i) => (
         <div
-          key={time}
+          key={i}
           style={{ height: SLOT_HEIGHT }}
           className="text-xs text-gray-500 px-2 border-b"
         >
-          {time}
+          {i % 3 === 0 ? TIME_SLOTS[Math.floor(i / 3)] : ""}
         </div>
       ))}
     </div>

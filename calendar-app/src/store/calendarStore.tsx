@@ -4,6 +4,7 @@ import type {
   CalendarEvent,
   Doctor,
 } from "../types/calendar";
+import { fetchAppointments, fetchDefaultDate } from "../api/odoo";
 
 interface CalendarState {
   view: "day" | "week";
@@ -18,6 +19,10 @@ interface CalendarState {
   activeStatuses: AppointmentStatus[];
   activeDoctorIds: string[];
 
+  // loading
+  loading: boolean;
+  loadError: string | null;
+
   // actions
   setView: (v: "day" | "week") => void;
   setDate: (d: Date) => void;
@@ -27,6 +32,8 @@ interface CalendarState {
   toggleDoctor: (id: string) => void;
   selectAllDoctors: () => void;
   clearAllDoctors: () => void;
+  updateEventTime: (eventId: string, newStart: Date, newEnd: Date) => void;
+  loadData: (options?: { date?: Date; useDefaultDate?: boolean }) => Promise<void>;
 }
 
 const ALL_STATUSES: AppointmentStatus[] = [
@@ -84,9 +91,11 @@ const EVENTS: CalendarEvent[] = [
   },
 ];
 
-export const useCalendarStore = create<CalendarState>((set) => ({
+const DEMO_DATE = new Date("2026-01-25T12:00:00");
+
+export const useCalendarStore = create<CalendarState>((set, get) => ({
   view: "day",
-  selectedDate: new Date(),
+  selectedDate: DEMO_DATE,
 
   statuses: ALL_STATUSES,
   doctors: DOCTORS,
@@ -94,6 +103,9 @@ export const useCalendarStore = create<CalendarState>((set) => ({
 
   activeStatuses: ALL_STATUSES,
   activeDoctorIds: DOCTORS.map((d) => d.id),
+
+  loading: false,
+  loadError: null,
 
   setView: (view) => set({ view }),
   setDate: (selectedDate) => set({ selectedDate }),
@@ -122,8 +134,68 @@ export const useCalendarStore = create<CalendarState>((set) => ({
     }),
 
   selectAllDoctors: () =>
-    set({
-      activeDoctorIds: DOCTORS.map((d) => d.id),
-    }),
+    set((state) => ({
+      activeDoctorIds: state.doctors.map((d) => d.id),
+    })),
   clearAllDoctors: () => set({ activeDoctorIds: [] }),
+
+  updateEventTime: (eventId, newStart, newEnd) =>
+    set((state) => ({
+      events: state.events.map((e) =>
+        e.id === eventId
+          ? { ...e, start: newStart.toISOString(), end: newEnd.toISOString() }
+          : e
+      ),
+    })),
+
+  loadData: async (options?: { date?: Date; useDefaultDate?: boolean }) => {
+    const state = get();
+    if (state.loading) return;
+    set({ loading: true, loadError: null });
+
+    try {
+      let targetDate = options?.date ?? state.selectedDate;
+      if (options?.useDefaultDate) {
+        targetDate = await fetchDefaultDate();
+      }
+
+      const { doctors, events } = await fetchAppointments(targetDate);
+
+      const hasEvents = events.length > 0;
+      const useEvents = hasEvents ? events : EVENTS;
+      const useDate = hasEvents ? targetDate : DEMO_DATE;
+      let useDoctors = (doctors.length > 0 ? doctors : DOCTORS).slice();
+      const doctorIds = new Set(useDoctors.map((d) => d.id));
+      for (const e of useEvents) {
+        if (e.doctorId && !doctorIds.has(e.doctorId)) {
+          doctorIds.add(e.doctorId);
+          useDoctors = [
+            ...useDoctors,
+            { id: e.doctorId, name: `Doctor ${e.doctorId}`, specialty: "" },
+          ];
+        }
+      }
+      if (useDoctors.length === 0) useDoctors = DOCTORS;
+      set({
+        selectedDate: useDate,
+        doctors: useDoctors,
+        events: useEvents,
+        activeDoctorIds: useDoctors.map((d) => d.id),
+        activeStatuses: ALL_STATUSES,
+        loading: false,
+        loadError: hasEvents ? null : "No appointments for this date — showing demo data.",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load appointments";
+      set({
+        loading: false,
+        loadError: msg,
+        selectedDate: DEMO_DATE,
+        doctors: DOCTORS,
+        events: EVENTS,
+        activeDoctorIds: DOCTORS.map((d) => d.id),
+        activeStatuses: ALL_STATUSES,
+      });
+    }
+  },
 }));

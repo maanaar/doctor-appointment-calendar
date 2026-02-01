@@ -1,5 +1,5 @@
 import type { CalendarEvent, Doctor } from "../../types/calendar";
-import { TIME_SLOTS, SLOT_HEIGHT } from "../../utils/time";
+import { GRID_SLOT_COUNT, SLOT_HEIGHT } from "../../utils/time";
 import CalendarEventItem from "./CalenderEventItem";
 
 interface DoctorColumnProps {
@@ -16,7 +16,7 @@ export default function DoctorColumn({ doctor, events }: DoctorColumnProps) {
       </div>
 
       <div className="relative">
-        {TIME_SLOTS.map((_, i) => (
+        {Array.from({ length: GRID_SLOT_COUNT }, (_, i) => (
           <div
             key={i}
             style={{ height: SLOT_HEIGHT }}

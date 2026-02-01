@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:odoo": "npm run build && node scripts/copy-to-odoo.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },

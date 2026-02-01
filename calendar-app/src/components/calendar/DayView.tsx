@@ -22,9 +22,12 @@ export default function DayView() {
 
   const doctorById = new Map(visibleDoctors.map((d) => [d.id, d]));
 
-  const specialties = Array.from(
-    new Set(visibleDoctors.map((d) => d.specialty))
+  let specialties = Array.from(
+    new Set(visibleDoctors.map((d) => d.specialty || d.name || "").filter(Boolean))
   );
+  if (specialties.length === 0 && visibleDoctors.length > 0) {
+    specialties = visibleDoctors.map((d) => d.name || String(d.id));
+  }
 
   const visibleEvents = events.filter((e) => {
     const eventStart = new Date(e.start);
@@ -43,7 +46,8 @@ export default function DayView() {
           specialty={specialty}
           events={visibleEvents.filter((e) => {
             const doctor = doctorById.get(e.doctorId);
-            return doctor?.specialty === specialty;
+            const docSpecialty = doctor?.specialty || doctor?.name || "";
+            return docSpecialty === specialty || String(doctor?.id) === specialty;
           })}
         />
       ))}

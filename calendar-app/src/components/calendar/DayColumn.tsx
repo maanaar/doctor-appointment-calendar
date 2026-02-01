@@ -4,20 +4,22 @@ import { GRID_SLOT_COUNT, SLOT_HEIGHT, SLOT_MINUTES, START_HOUR } from "../../ut
 import CalendarEventItem from "./CalenderEventItem";
 import { useCalendarStore } from "../../store/calendarStore";
 
-interface SpecialtyColumnProps {
-  specialty: string;
-  events?: CalendarEvent[];
+interface DayColumnProps {
+  day: Date;
+  events: CalendarEvent[];
 }
 
-export default function SpecialtyColumn({
-  specialty,
-  events: EVENTS,
-}: SpecialtyColumnProps) {
+export default function DayColumn({ day, events }: DayColumnProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [dropIndicator, setDropIndicator] = useState<number | null>(null);
 
-  const selectedDate = useCalendarStore((s) => s.selectedDate);
   const updateEventTime = useCalendarStore((s) => s.updateEventTime);
+
+  const label = day.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -52,7 +54,7 @@ export default function SpecialtyColumn({
     const newStartHour = START_HOUR + Math.floor(minutesFromStart / 60);
     const newStartMinute = minutesFromStart % 60;
 
-    const newStart = new Date(selectedDate);
+    const newStart = new Date(day);
     newStart.setHours(newStartHour, newStartMinute, 0, 0);
 
     const newEnd = new Date(newStart.getTime() + duration * 60000);
@@ -61,9 +63,14 @@ export default function SpecialtyColumn({
   };
 
   return (
-    <div className="min-w-[260px] border-r relative bg-slate-50">
-      <div className="sticky top-0 bg-white border-b p-2 z-10 h-10 flex items-center">
-        <p className="text-sm font-semibold">{specialty}</p>
+    <div className="min-w-[180px] border-r relative bg-slate-50">
+      <div className="sticky top-0 h-10 flex flex-col justify-center bg-white border-b px-2 z-10">
+        <span className="text-xs font-semibold text-gray-800">
+          {label.split(" ")[0]}
+        </span>
+        <span className="text-[11px] text-gray-500">
+          {label.split(" ").slice(1).join(" ")}
+        </span>
       </div>
 
       <div
@@ -83,11 +90,10 @@ export default function SpecialtyColumn({
           />
         ))}
 
-        {EVENTS?.map((event) => (
+        {events.map((event) => (
           <CalendarEventItem key={event.id} event={event} />
         ))}
       </div>
     </div>
   );
 }
-

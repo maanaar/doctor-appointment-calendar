@@ -1,7 +1,6 @@
 import { useCalendarStore } from "../../store/calendarStore";
 import { getWeekDays } from "../../utils/date";
-import { TIME_SLOTS, SLOT_HEIGHT } from "../../utils/time";
-import CalendarEventItem from "./CalenderEventItem";
+import DayColumn from "./DayColumn";
 
 function isSameDay(a: Date, b: Date) {
   return (
@@ -32,40 +31,8 @@ export default function WeekView() {
           isSameDay(new Date(e.start), day)
         );
 
-        const label = day.toLocaleDateString(undefined, {
-          weekday: "short",
-          day: "numeric",
-          month: "short",
-        });
-
         return (
-          <div
-            key={day.toISOString()}
-            className="min-w-[180px] border-r relative bg-slate-50"
-          >
-            <div className="sticky top-0 h-10 flex flex-col justify-center bg-white border-b px-2 z-10">
-              <span className="text-xs font-semibold text-gray-800">
-                {label.split(" ")[0]}
-              </span>
-              <span className="text-[11px] text-gray-500">
-                {label.split(" ").slice(1).join(" ")}
-              </span>
-            </div>
-
-            <div className="relative">
-              {TIME_SLOTS.map((_, i) => (
-                <div
-                  key={i}
-                  style={{ height: SLOT_HEIGHT }}
-                  className="border-b"
-                />
-              ))}
-
-              {dayEvents.map((event) => (
-                <CalendarEventItem key={event.id} event={event} />
-              ))}
-            </div>
-          </div>
+          <DayColumn key={day.toISOString()} day={day} events={dayEvents} />
         );
       })}
     </div>
