@@ -23,6 +23,11 @@ interface CalendarState {
   loading: boolean;
   loadError: string | null;
 
+  // popup state
+  selectedEvent: CalendarEvent | null;
+  showBookingPopup: boolean;
+  bookingMode: "create" | "edit";
+
   // actions
   setView: (v: "day" | "week") => void;
   setDate: (d: Date) => void;
@@ -34,6 +39,9 @@ interface CalendarState {
   clearAllDoctors: () => void;
   updateEventTime: (eventId: string, newStart: Date, newEnd: Date) => void;
   loadData: (options?: { date?: Date; useDefaultDate?: boolean }) => Promise<void>;
+  openEventPopup: (event: CalendarEvent) => void;
+  openNewBooking: (date?: string, time?: string) => void;
+  closeBookingPopup: () => void;
 }
 
 const ALL_STATUSES: AppointmentStatus[] = [
@@ -107,6 +115,11 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   loading: false,
   loadError: null,
 
+  // popup state
+  selectedEvent: null,
+  showBookingPopup: false,
+  bookingMode: "create",
+
   setView: (view) => set({ view }),
   setDate: (selectedDate) => set({ selectedDate }),
 
@@ -147,6 +160,41 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
           : e
       ),
     })),
+
+  openEventPopup: (event) =>
+    set({ selectedEvent: event, showBookingPopup: true, bookingMode: "edit" }),
+
+  openNewBooking: (dateTime, _time) => {
+    const state = get();
+    const startStr = dateTime || state.selectedDate.toISOString().slice(0, 10) + "T08:00:00";
+    // Calculate end time (30 min after start)
+    const startDate = new Date(startStr);
+    const endDate = new Date(startDate.getTime() + 30 * 60000);
+    const endStr = 
+      endDate.getFullYear() +
+      "-" +
+      String(endDate.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(endDate.getDate()).padStart(2, "0") +
+      "T" +
+      String(endDate.getHours()).padStart(2, "0") +
+      ":" +
+      String(endDate.getMinutes()).padStart(2, "0") +
+      ":00";
+    
+    const newEvent: CalendarEvent = {
+      id: "",
+      patientName: "",
+      doctorId: "",
+      start: startStr,
+      end: endStr,
+      status: "ON_THE_FLY",
+    };
+    set({ selectedEvent: newEvent, showBookingPopup: true, bookingMode: "create" });
+  },
+
+  closeBookingPopup: () =>
+    set({ showBookingPopup: false, selectedEvent: null }),
 
   loadData: async (options?: { date?: Date; useDefaultDate?: boolean }) => {
     const state = get();

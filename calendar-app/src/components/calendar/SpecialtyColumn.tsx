@@ -18,6 +18,7 @@ export default function SpecialtyColumn({
 
   const selectedDate = useCalendarStore((s) => s.selectedDate);
   const updateEventTime = useCalendarStore((s) => s.updateEventTime);
+  const openNewBooking = useCalendarStore((s) => s.openNewBooking);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -60,6 +61,28 @@ export default function SpecialtyColumn({
     updateEventTime(eventId, newStart, newEnd);
   };
 
+  // Click on empty cell to create new appointment
+  const handleCellClick = (slotIndex: number) => {
+    const minutesFromStart = slotIndex * SLOT_MINUTES;
+    const hour = START_HOUR + Math.floor(minutesFromStart / 60);
+    const minute = minutesFromStart % 60;
+    
+    // Format date as YYYY-MM-DD
+    const dateStr = 
+      selectedDate.getFullYear() +
+      "-" +
+      String(selectedDate.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(selectedDate.getDate()).padStart(2, "0");
+    
+    // Format time as HH:MM:SS
+    const timeStr = 
+      String(hour).padStart(2, "0") + ":" +
+      String(minute).padStart(2, "0") + ":00";
+    
+    openNewBooking(dateStr + "T" + timeStr, timeStr);
+  };
+
   return (
     <div className="min-w-[260px] border-r relative bg-slate-50">
       <div className="sticky top-0 bg-white border-b p-2 z-10 h-10 flex items-center">
@@ -77,7 +100,8 @@ export default function SpecialtyColumn({
           <div
             key={i}
             style={{ height: SLOT_HEIGHT }}
-            className={`border-b transition-colors ${
+            onClick={() => handleCellClick(i)}
+            className={`border-b transition-colors cursor-pointer hover:bg-blue-50 ${
               dropIndicator === i ? "bg-emerald-100" : ""
             }`}
           />

@@ -13,6 +13,22 @@ const DIST = path.join(__dirname, '..', 'dist');
 const ODOO_ADDONS = process.env.ODOO_ADDONS_PATH || path.join(__dirname, '..', '..', '..', 'extra-addons');
 const TARGET = path.join(ODOO_ADDONS, 'agial_17', 'static', 'calendar');
 
+function cleanDirectory(dir) {
+  if (fs.existsSync(dir)) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        cleanDirectory(fullPath);
+        fs.rmdirSync(fullPath);
+      } else {
+        fs.unlinkSync(fullPath);
+      }
+    }
+    console.log('  Cleaned:', dir);
+  }
+}
+
 function copyRecursive(src, dest) {
   if (!fs.existsSync(src)) {
     console.error('Build not found. Run "npm run build" first.');
@@ -37,5 +53,10 @@ function copyRecursive(src, dest) {
 console.log('Copying build to Odoo static folder...');
 console.log('  From:', DIST);
 console.log('  To:', TARGET);
+
+// Clean old assets to prevent caching issues
+console.log('Cleaning old assets...');
+cleanDirectory(path.join(TARGET, 'assets'));
+
 copyRecursive(DIST, TARGET);
-console.log('Done. Restart Odoo and open IVF Inpatient > React Calendar.');
+console.log('Done. Restart Odoo and HARD REFRESH (Ctrl+Shift+R) the browser.');

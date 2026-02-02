@@ -1,13 +1,12 @@
 import { useCalendarStore } from "../../store/calendarStore";
-import { getWeekDays } from "../../utils/date";
+import { getWeekDays, toLocalDateString } from "../../utils/date";
 import DayColumn from "./DayColumn";
 
-function isSameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+function isSameDayString(eventStart: string, day: Date): boolean {
+  // Extract YYYY-MM-DD from the event start string directly (avoids timezone issues)
+  const eventDatePart = eventStart.slice(0, 10);
+  const dayDatePart = toLocalDateString(day);
+  return eventDatePart === dayDatePart;
 }
 
 export default function WeekView() {
@@ -24,11 +23,18 @@ export default function WeekView() {
       activeStatuses.includes(e.status)
   );
 
+  console.log("WeekView debug:", {
+    selectedDate: toLocalDateString(selectedDate),
+    weekDays: weekDays.map(d => toLocalDateString(d)),
+    totalEvents: events.length,
+    visibleEvents: visibleEvents.length,
+  });
+
   return (
     <div className="flex flex-1">
       {weekDays.map((day) => {
         const dayEvents = visibleEvents.filter((e) =>
-          isSameDay(new Date(e.start), day)
+          isSameDayString(e.start, day)
         );
 
         return (
