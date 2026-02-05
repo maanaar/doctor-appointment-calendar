@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import type { CalendarEvent } from "../../types/calendar";
 import { GRID_SLOT_COUNT, SLOT_HEIGHT, SLOT_MINUTES, START_HOUR } from "../../utils/time";
 import CalendarEventItem from "./CalenderEventItem";
 import { useCalendarStore } from "../../store/calendarStore";
+import { fetchAvailableSlots } from "../../api/odoo";
 
 interface SpecialtyColumnProps {
   specialty: string;
@@ -19,6 +20,38 @@ export default function SpecialtyColumn({
   const selectedDate = useCalendarStore((s) => s.selectedDate);
   const updateEventTime = useCalendarStore((s) => s.updateEventTime);
   const openNewBooking = useCalendarStore((s) => s.openNewBooking);
+
+  // Derive base cycle name (strip count suffix like "Retrieval (3)")
+  const baseName = specialty.split(" (")[0];
+
+  // Match Odoo JS logic: shouldUse20MinIntervals(doctor) => doctor.name includes "IUI"
+  const upperName = baseName.toUpperCase();
+  const use20MinIntervals = upperName.includes("IUI");
+  const cycleSlotMinutes = use20MinIntervals ? 20 : 15;
+
+  // With 5‑min base grid, 15 min => 3 slots, 20 min => 4 slots
+  const stepSlots = Math.max(1, Math.round(cycleSlotMinutes / SLOT_MINUTES));
+
+  // Available slots from Odoo (e.g. excludes blocked / reserved)
+  const [availableSet, setAvailableSet] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchAvailableSlots(selectedDate, undefined, baseName);
+        if (cancelled) return;
+        const set = new Set<string>((res.available || []) as string[]);
+        setAvailableSet(set);
+      } catch (e) {
+        console.error("Failed to fetch available slots:", e);
+        if (!cancelled) setAvailableSet(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate, baseName]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -62,7 +95,9 @@ export default function SpecialtyColumn({
   };
 
   // Click on empty cell to create new appointment
-  const handleCellClick = (slotIndex: number) => {
+  const handleCellClick = (slotIndex: number, isBookable: boolean) => {
+    if (!isBookable) return;
+
     const minutesFromStart = slotIndex * SLOT_MINUTES;
     const hour = START_HOUR + Math.floor(minutesFromStart / 60);
     const minute = minutesFromStart % 60;
@@ -96,16 +131,41 @@ export default function SpecialtyColumn({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {Array.from({ length: GRID_SLOT_COUNT }, (_, i) => (
-          <div
-            key={i}
-            style={{ height: SLOT_HEIGHT }}
-            onClick={() => handleCellClick(i)}
-            className={`border-b transition-colors cursor-pointer hover:bg-blue-50 ${
-              dropIndicator === i ? "bg-emerald-100" : ""
-            }`}
-          />
-        ))}
+        {Array.from({ length: GRID_SLOT_COUNT }, (_, i) => {
+          const minutesFromStart = i * SLOT_MINUTES;
+          const hour = START_HOUR + Math.floor(minutesFromStart / 60);
+          const minute = minutesFromStart % 60;
+
+          // 5‑min base grid; bookable only at 15/20‑min steps for this cycle
+          const isStep = i % stepSlots === 0;
+
+          // Convert to 12‑hour string like "08:00 AM" to match Python logic
+          const displayHour = ((hour - 1) % 12) + 1;
+          const ampm = hour < 12 ? "AM" : "PM";
+          const time12 = `${displayHour.toString().padStart(2, "0")}:${minute
+            .toString()
+            .padStart(2, "0")} ${ampm}`;
+
+          const isAvailable =
+            !availableSet || availableSet.size === 0
+              ? true
+              : availableSet.has(time12);
+
+          const clickable = isStep && isAvailable;
+
+          return (
+            <div
+              key={i}
+              style={{ height: SLOT_HEIGHT }}
+              onClick={() => handleCellClick(i, clickable)}
+              className={`border-b transition-colors ${
+                clickable
+                  ? "cursor-pointer hover:bg-blue-50"
+                  : "cursor-default bg-slate-50"
+              } ${dropIndicator === i ? "bg-emerald-100" : ""}`}
+            />
+          );
+        })}
 
         {EVENTS?.map((event) => (
           <CalendarEventItem key={event.id} event={event} />

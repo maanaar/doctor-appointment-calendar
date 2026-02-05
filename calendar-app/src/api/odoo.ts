@@ -35,11 +35,18 @@ export interface OdooDefaultDateResponse {
   day: string;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
+export interface BookingMetaResponse {
+  cycles: Array<{ id: number; name: string }>;
+  doctors: Array<{ id: number; name: string }>;
+  patients: Array<{ id: number; name: string; mobile?: string; mfn?: string; mrn?: string }>;
+}
+
+async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     method: "GET",
     credentials: "include",
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...(options?.headers || {}) },
+    ...options,
   });
   if (!res.ok) {
     throw new Error(`Odoo API error: ${res.status} ${res.statusText}`);
@@ -138,3 +145,82 @@ export async function fetchAppointments(date: Date): Promise<{
 
   return { doctors, events };
 }
+
+export async function fetchBookingMeta(): Promise<BookingMetaResponse> {
+  const url = `${baseUrl}/agial/calendar/meta`;
+  const raw = await fetchJson<BookingMetaResponse | { result?: BookingMetaResponse }>(url);
+  return unwrapOdooResponse(raw) as BookingMetaResponse;
+}
+
+export interface CreateAppointmentPayload {
+  patientName: string;
+  patientPhone: string;
+  coupleName: string;
+  couplePhone: string;
+  cycleId?: number;
+  triggerAppDate: string; // YYYY-MM-DD
+  trAppointmentTime: string; // e.g. '08:00 AM'
+  primaryDoctorId?: number;
+  noOfOocytes: string;
+  semenSource: string;
+  day: string;
+  biopsy: string;
+  service: string;
+  notes: string;
+  onthfState1: "onthefly" | "confirmed";
+  patientId?: number;
+}
+
+export async function createAppointment(payload: any) {
+  const res = await fetch("/agial/calendar/appointment", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams(payload).toString(),
+  });
+
+  return res.json();
+}
+
+export interface AvailableSlotsResponse {
+  all: string[];
+  available: string[];
+  step: number;
+  service: string;
+  error?: string;
+}
+
+/** Fetch available slots for a date + cycle (uses same logic as patient_medication_sheet). */
+export async function fetchAvailableSlots(
+  date: Date,
+  cycleId?: number,
+  cycleName?: string
+): Promise<AvailableSlotsResponse> {
+  const url = `${baseUrl}/agial/calendar/available-slots`;
+  const body = JSON.stringify({
+    date:
+      date.getFullYear() +
+      "-" +
+      String(date.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(date.getDate()).padStart(2, "0"),
+    cycle_id: cycleId,
+    cycle_name: cycleName,
+  });
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body,
+  });
+  if (!res.ok) {
+    throw new Error(`Odoo API error: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+

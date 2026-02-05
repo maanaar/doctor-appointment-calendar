@@ -2,7 +2,7 @@
 export const START_HOUR = 8;
 export const END_HOUR = 15;
 export const SLOT_MINUTES = 5;
-export const SLOT_HEIGHT = 10;
+export const SLOT_HEIGHT = 12;
 export const GRID_SLOT_COUNT =
   ((END_HOUR - START_HOUR) * 60) / SLOT_MINUTES;
 

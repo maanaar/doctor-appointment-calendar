@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { getWeekDays } from "../utils/date";
 import type {
   AppointmentStatus,
   CalendarEvent,
@@ -39,6 +40,7 @@ interface CalendarState {
   clearAllDoctors: () => void;
   updateEventTime: (eventId: string, newStart: Date, newEnd: Date) => void;
   loadData: (options?: { date?: Date; useDefaultDate?: boolean }) => Promise<void>;
+  loadWeek: (date: Date) => Promise<void>;
   openEventPopup: (event: CalendarEvent) => void;
   openNewBooking: (date?: string, time?: string) => void;
   closeBookingPopup: () => void;
@@ -188,8 +190,9 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       doctorId: "",
       start: startStr,
       end: endStr,
-      status: "ON_THE_FLY",
+      status: "ON_THE_FLY", // ✅ This sets the initial status
     };
+    console.log("Opening new booking with event:", newEvent);
     set({ selectedEvent: newEvent, showBookingPopup: true, bookingMode: "create" });
   },
 
@@ -207,14 +210,13 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
         targetDate = await fetchDefaultDate();
       }
 
+      console.log("Loading data for date:", targetDate);
       const { doctors, events } = await fetchAppointments(targetDate);
+      console.log("Fetched doctors:", doctors.length, "events:", events.length);
 
-      const hasEvents = events.length > 0;
-      const useEvents = hasEvents ? events : EVENTS;
-      const useDate = hasEvents ? targetDate : DEMO_DATE;
       let useDoctors = (doctors.length > 0 ? doctors : DOCTORS).slice();
       const doctorIds = new Set(useDoctors.map((d) => d.id));
-      for (const e of useEvents) {
+      for (const e of events) {
         if (e.doctorId && !doctorIds.has(e.doctorId)) {
           doctorIds.add(e.doctorId);
           useDoctors = [
@@ -225,24 +227,75 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       }
       if (useDoctors.length === 0) useDoctors = DOCTORS;
       set({
-        selectedDate: useDate,
+        selectedDate: targetDate,
         doctors: useDoctors,
-        events: useEvents,
+        events,
         activeDoctorIds: useDoctors.map((d) => d.id),
         activeStatuses: ALL_STATUSES,
         loading: false,
-        loadError: hasEvents ? null : "No appointments for this date — showing demo data.",
+        loadError: events.length === 0 ? "No appointments for this date." : null,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load appointments";
+      console.error("Load data error:", err);
       set({
         loading: false,
         loadError: msg,
-        selectedDate: DEMO_DATE,
+        // keep current selectedDate, but restore demo data so UI isn't blank
         doctors: DOCTORS,
         events: EVENTS,
         activeDoctorIds: DOCTORS.map((d) => d.id),
         activeStatuses: ALL_STATUSES,
+      });
+    }
+  },
+
+  loadWeek: async (date: Date) => {
+    const state = get();
+    if (state.loading) return;
+    set({ loading: true, loadError: null });
+
+    try {
+      console.log("Loading week for date:", date);
+      const weekDays = getWeekDays(date);
+      console.log("Week days:", weekDays);
+      
+      const results = await Promise.all(
+        weekDays.map((d) => fetchAppointments(d))
+      );
+
+      const allDoctorsMap = new Map<string, Doctor>();
+      const allEvents: CalendarEvent[] = [];
+
+      for (const { doctors, events } of results) {
+        for (const d of doctors) {
+          if (!allDoctorsMap.has(d.id)) {
+            allDoctorsMap.set(d.id, d);
+          }
+        }
+        allEvents.push(...events);
+      }
+
+      let useDoctors = Array.from(allDoctorsMap.values());
+      if (useDoctors.length === 0) useDoctors = DOCTORS;
+
+      console.log("Week loaded - doctors:", useDoctors.length, "events:", allEvents.length);
+
+      set({
+        selectedDate: date,
+        doctors: useDoctors,
+        events: allEvents,
+        activeDoctorIds: useDoctors.map((d) => d.id),
+        activeStatuses: ALL_STATUSES,
+        loading: false,
+        loadError: allEvents.length === 0 ? "No appointments for this week." : null,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load week appointments";
+      console.error("Load week error:", err);
+      set({
+        loading: false,
+        loadError: msg,
       });
     }
   },

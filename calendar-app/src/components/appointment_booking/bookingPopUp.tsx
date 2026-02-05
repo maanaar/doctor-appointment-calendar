@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BIOPSY_OPTIONS, SEMEN_SOURCE_OPTIONS, DEFAULT_BOOKING_FORM, type BookingFormData } from "../../types/booking";
 import { TIME_SLOTS } from "../../utils/time.ts";
 
@@ -9,6 +9,7 @@ interface BookingPopUpProps {
   initialData?: Partial<BookingFormData>;
   cycles?: { id: number; name: string }[];
   doctors?: { id: number; name: string }[];
+  patients?: { id: number; name: string; mobile?: string; mfn?: string; mrn?: string }[];
   mode?: "create" | "edit";
 }
 
@@ -19,6 +20,7 @@ export default function BookingPopUp({
   initialData,
   cycles = [],
   doctors = [],
+  patients = [],
   mode = "create",
 }: BookingPopUpProps) {
   const [formData, setFormData] = useState<BookingFormData>({
@@ -26,6 +28,15 @@ export default function BookingPopUp({
     ...initialData,
   });
   const [activeTab, setActiveTab] = useState<"patient" | "appointment">("patient");
+
+  // Update form data when initialData changes (e.g., when opening a new booking)
+  useEffect(() => {
+    console.log("BookingPopUp initialData changed:", initialData);
+    setFormData({
+      ...DEFAULT_BOOKING_FORM,
+      ...initialData,
+    });
+  }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
@@ -39,8 +50,23 @@ export default function BookingPopUp({
     }));
   };
 
+  const handlePatientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    const id = val ? parseInt(val, 10) : undefined;
+    const patient = patients.find((p) => p.id === id);
+    setFormData((prev) => ({
+      ...prev,
+      patientId: id,
+      patientName: patient?.name || prev.patientName,
+      patientPhone: patient?.mobile || prev.patientPhone,
+      mfn: patient?.mfn || prev.mfn,
+      mrn: patient?.mrn || prev.mrn,
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Submitting form data:", formData);
     onSave(formData);
   };
 
@@ -81,7 +107,7 @@ export default function BookingPopUp({
               className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
                 activeTab === "patient"
                   ? "bg-white text-blue-700"
-                  : "text-white hover:bg-blue-500"
+                  : "text-white hover:bg-emerald-600"
               }`}
               onClick={() => setActiveTab("patient")}
             >
@@ -91,7 +117,7 @@ export default function BookingPopUp({
               className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
                 activeTab === "appointment"
                   ? "bg-white text-blue-700"
-                  : "text-blue-700 hover:bg-blue-500"
+                  : "text-white hover:bg-emerald-600"
               }`}
               onClick={() => setActiveTab("appointment")}
             >
@@ -129,15 +155,20 @@ export default function BookingPopUp({
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className={labelClass}>Patient Name *</label>
-                    <input
-                      type="text"
-                      name="patientName"
-                      value={formData.patientName}
-                      onChange={handleChange}
+                    <label className={labelClass}>Patient *</label>
+                    <select
+                      name="patientId"
+                      value={formData.patientId || ""}
+                      onChange={handlePatientChange}
                       className={inputClass}
-                      required
-                    />
+                    >
+                      <option value="">Select Patient</option>
+                      {patients.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className={labelClass}>Phone No</label>
@@ -247,7 +278,6 @@ export default function BookingPopUp({
                   <div>
                     <label className={labelClass}>Cycle Service *</label>
                     <select
-                    
                       name="cycleId"
                       value={formData.cycleId || ""}
                       onChange={handleChange}
@@ -381,16 +411,22 @@ export default function BookingPopUp({
                     </select>
                   </div>
                   <div>
-                    <label className={labelClass}>Status</label>
+                    <label className={labelClass}>Status *</label>
                     <select
                       name="onthfState1"
                       value={formData.onthfState1}
                       onChange={handleChange}
                       className={inputClass}
+                      required
                     >
                       <option value="onthefly">On The Fly</option>
                       <option value="confirmed">Confirmed</option>
                     </select>
+                    {formData.onthfState1 === "onthefly" && (
+                      <p className="mt-1 text-xs text-amber-600">
+                        ⚠️ This appointment will be created in "On The Fly" status
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

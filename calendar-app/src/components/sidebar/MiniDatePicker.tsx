@@ -6,15 +6,14 @@ function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function addMonths(date: Date, amount: number) {
-  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
-}
-
 export default function MiniDatePicker() {
   const selectedDate = useCalendarStore((s) => s.selectedDate);
-  const setDate = useCalendarStore((s) => s.setDate);
+  const view = useCalendarStore((s) => s.view);
   const loadData = useCalendarStore((s) => s.loadData);
+  const loadWeek = useCalendarStore((s) => s.loadWeek);
+  const setDate = useCalendarStore((s) => s.setDate);
 
+  // Use selectedDate for the calendar display
   const monthStart = startOfMonth(selectedDate);
   const monthLabel = monthStart.toLocaleDateString(undefined, {
     month: "long",
@@ -40,12 +39,50 @@ export default function MiniDatePicker() {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
 
+  // Handle date selection
+  const handleDateClick = async (cellDate: Date) => {
+    setDate(cellDate); // Update selected date first
+    if (view === "week") {
+      await loadWeek(cellDate);
+    } else {
+      await loadData({ date: cellDate });
+    }
+  };
+
+  // Handle month navigation - maintains the same day of month when possible
+  const handleMonthChange = async (direction: -1 | 1) => {
+    const newMonth = selectedDate.getMonth() + direction;
+    const newYear = selectedDate.getFullYear() + Math.floor(newMonth / 12);
+    const normalizedMonth = ((newMonth % 12) + 12) % 12;
+    
+    // Keep the same day of month if possible, otherwise use last day of new month
+    const daysInNewMonth = new Date(newYear, normalizedMonth + 1, 0).getDate();
+    const newDay = Math.min(selectedDate.getDate(), daysInNewMonth);
+    
+    const newDate = new Date(newYear, normalizedMonth, newDay);
+    
+    setDate(newDate);
+    if (view === "week") {
+      await loadWeek(newDate);
+    } else {
+      await loadData({ date: newDate });
+    }
+  };
+
   return (
     <div className="p-4 border-b">
       <div className="flex items-center justify-between mb-3">
         <button
           className="rounded-full px-2 py-1 text-xs border text-gray-600 hover:bg-gray-100"
-          onClick={() => loadData({ date: new Date() })}
+          onClick={async () => {
+            const todayDate = new Date();
+            setDate(todayDate);
+            if (view === "week") {
+              await loadWeek(todayDate);
+            } else {
+              await loadData({ date: todayDate });
+            }
+          }}
         >
           Today
         </button>
@@ -55,13 +92,13 @@ export default function MiniDatePicker() {
         <div className="flex gap-1">
           <button
             className="w-6 h-6 rounded-full border text-xs text-gray-600 hover:bg-gray-100"
-            onClick={() => setDate(addMonths(selectedDate, -1))}
+            onClick={() => handleMonthChange(-1)}
           >
             ‹
           </button>
           <button
             className="w-6 h-6 rounded-full border text-xs text-gray-600 hover:bg-gray-100"
-            onClick={() => setDate(addMonths(selectedDate, 1))}
+            onClick={() => handleMonthChange(1)}
           >
             ›
           </button>
@@ -100,7 +137,7 @@ export default function MiniDatePicker() {
                   ? "border border-emerald-400 text-emerald-600"
                   : "text-gray-700 hover:bg-gray-100",
               ].join(" ")}
-              onClick={() => loadData({ date: cellDate })}
+              onClick={() => handleDateClick(cellDate)}
             >
               {day}
             </button>
