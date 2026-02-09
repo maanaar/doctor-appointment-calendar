@@ -1,16 +1,16 @@
-// 8 AM–3 PM; 5‑min grid so 15‑min and 20‑min cycles align; 10px per 5‑min slot
+// 8 AM–3 PM; 5‑min grid so 15‑min and 20‑min cycles align
 export const START_HOUR = 8;
 export const END_HOUR = 15;
 export const SLOT_MINUTES = 5;
-export const SLOT_HEIGHT = 12;
+export const SLOT_HEIGHT = 24; // Increased from 12 to 24 for better spacing
 export const GRID_SLOT_COUNT =
   ((END_HOUR - START_HOUR) * 60) / SLOT_MINUTES;
 
-// Labels every 15 min to avoid clutter (8:00, 8:15, …)
+// Display ALL time slots (every 5 minutes: 8:00, 8:05, 8:10, 8:15, etc.)
 export const TIME_SLOTS = Array.from(
-  { length: ((END_HOUR - START_HOUR) * 60) / 15 },
+  { length: GRID_SLOT_COUNT },
   (_, i) => {
-    const total = START_HOUR * 60 + i * 15;
+    const total = START_HOUR * 60 + i * SLOT_MINUTES;
     const h = Math.floor(total / 60);
     const m = total % 60;
     const displayH = h % 12 || 12;

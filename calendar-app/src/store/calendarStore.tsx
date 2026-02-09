@@ -5,7 +5,8 @@ import type {
   CalendarEvent,
   Doctor,
 } from "../types/calendar";
-import { fetchAppointments, fetchDefaultDate } from "../api/odoo";
+import { fetchAppointments, fetchDefaultDate, updateAppointment } from "../api/odoo";
+import { toLocalIso } from "../utils/datetime";
 
 interface CalendarState {
   view: "day" | "week";
@@ -38,12 +39,13 @@ interface CalendarState {
   toggleDoctor: (id: string) => void;
   selectAllDoctors: () => void;
   clearAllDoctors: () => void;
-  updateEventTime: (eventId: string, newStart: Date, newEnd: Date) => void;
+  updateEventTime: (eventId: string, newStart: Date, newEnd: Date, newDoctorId?: string) => void;
   loadData: (options?: { date?: Date; useDefaultDate?: boolean }) => Promise<void>;
   loadWeek: (date: Date) => Promise<void>;
   openEventPopup: (event: CalendarEvent) => void;
   openNewBooking: (date?: string, time?: string) => void;
   closeBookingPopup: () => void;
+  updating: boolean;
 }
 
 const ALL_STATUSES: AppointmentStatus[] = [
@@ -121,6 +123,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   selectedEvent: null,
   showBookingPopup: false,
   bookingMode: "create",
+  updating: false,
 
   setView: (view) => set({ view }),
   setDate: (selectedDate) => set({ selectedDate }),
@@ -154,15 +157,64 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     })),
   clearAllDoctors: () => set({ activeDoctorIds: [] }),
 
-  updateEventTime: (eventId, newStart, newEnd) =>
+  // store/calendarStore.ts
+  updateEventTime: (eventId, newStart, newEnd, newDoctorId) => {
+    // 1️⃣ Optimistic UI update
     set((state) => ({
       events: state.events.map((e) =>
         e.id === eventId
-          ? { ...e, start: newStart.toISOString(), end: newEnd.toISOString() }
+          ? {
+              ...e,
+              start: toLocalIso(newStart),
+              end: toLocalIso(newEnd),
+              ...(newDoctorId ? { doctorId: newDoctorId } : {}),
+            }
           : e
       ),
-    })),
+      updating: true, // ← Show loading
+    }));
 
+    // 2️⃣ Backend update
+    updateAppointment({
+      appointment_id: eventId,
+      start: toLocalIso(newStart),
+      end: toLocalIso(newEnd),
+      ...(newDoctorId ? { cycle_id: newDoctorId } : {}),
+    })
+      .then(async (res) => {
+        if (!res.success) {
+          alert(res.error || "Update failed");
+          const { view, selectedDate, loadData, loadWeek } = get();
+          if (view === "week") {
+            await loadWeek(selectedDate);
+          } else {
+            await loadData({ date: selectedDate });
+          }
+          set({ updating: false });
+        } else {
+          const { view, selectedDate, loadData, loadWeek } = get();
+          if (view === "week") {
+            await loadWeek(selectedDate);
+          } else {
+            await loadData({ date: selectedDate });
+          }
+          set({ updating: false }); // ← Clear loading
+        }
+      })
+      .catch(async (err) => {
+        console.error("Update failed:", err);
+        alert("Failed to update appointment");
+        const { view, selectedDate, loadData, loadWeek } = get();
+        if (view === "week") {
+          await loadWeek(selectedDate);
+        } else {
+          await loadData({ date: selectedDate });
+        }
+        set({ updating: false });
+      });
+  },
+
+  
   openEventPopup: (event) =>
     set({ selectedEvent: event, showBookingPopup: true, bookingMode: "edit" }),
 

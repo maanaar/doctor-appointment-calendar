@@ -224,3 +224,33 @@ export async function fetchAvailableSlots(
   return res.json();
 }
 
+export interface UpdateAppointmentPayload {
+  appointment_id: string;
+  start: string;
+  end: string;
+  cycle_id?: string; // now ID
+}
+
+export async function updateAppointment(
+  payload: UpdateAppointmentPayload
+): Promise<any> {
+  const url = `${baseUrl}/agial/calendar/appointment/update`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `Failed to update appointment: ${res.status} ${res.statusText}`
+    );
+  }
+
+  return res.json();
+}

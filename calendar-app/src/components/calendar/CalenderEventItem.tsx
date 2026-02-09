@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { CalendarEvent } from "../../types/calendar";
 import {
   SLOT_HEIGHT,
@@ -27,28 +28,32 @@ function parseTimeFromString(timeStr: string): { hours: number; minutes: number 
   return { hours: h || 0, minutes: m || 0 };
 }
 
+function formatTime12Hour(timeStr: string): string {
+  const { hours, minutes } = parseTimeFromString(timeStr);
+  const hour12 = hours % 12 || 12;
+  const ampm = hours < 12 ? "AM" : "PM";
+  return `${hour12.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")} ${ampm}`;
+}
+
 export default function CalendarEventItem({ event }: { event: CalendarEvent }) {
   const openEventPopup = useCalendarStore((s) => s.openEventPopup);
+  const [showTooltip, setShowTooltip] = useState(false);
 
-  // Parse times directly from strings to avoid timezone conversion issues
+  // Parse start time only (ignore end time, events occupy one slot)
   const startTime = parseTimeFromString(event.start);
-  const endTime = parseTimeFromString(event.end);
 
   const minutesFromStart =
     startTime.hours * 60 + startTime.minutes - START_HOUR * 60;
 
-  const durationMinutes =
-    (endTime.hours * 60 + endTime.minutes) - (startTime.hours * 60 + startTime.minutes);
-  const duration = durationMinutes > 0 ? durationMinutes : 15; // fallback to 15 min
-
+  // Event occupies exactly one slot (SLOT_HEIGHT)
   const topPx = (minutesFromStart / SLOT_MINUTES) * SLOT_HEIGHT;
-  const heightPx = (duration / SLOT_MINUTES) * SLOT_HEIGHT;
-  const top = Math.max(0, Math.min(topPx, GRID_HEIGHT - 2));
-  const height = Math.max(8, Math.min(heightPx, GRID_HEIGHT - top));
+  const top = Math.max(0, Math.min(topPx, GRID_HEIGHT - SLOT_HEIGHT));
+  const height = SLOT_HEIGHT;
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("eventId", event.id);
-    e.dataTransfer.setData("duration", String(duration));
+    e.dataTransfer.setData("originalDoctorId", event.doctorId);
+    e.dataTransfer.setData("duration", String(SLOT_MINUTES)); // Always 5 min duration
     e.dataTransfer.effectAllowed = "move";
   };
 
@@ -57,12 +62,23 @@ export default function CalendarEventItem({ event }: { event: CalendarEvent }) {
     openEventPopup(event);
   };
 
+  // Extract additional data from _raw if available
+  const rawData = (event as any)._raw || {};
+  const oocytes = rawData.oocyte || "N/A";
+  const doctor = rawData.doctor || "N/A";
+  const triggerDate = rawData.trigger_date || "N/A";
+  const service = rawData.service || rawData.service2 || "N/A";
+  const day = rawData.day || "N/A";
+  const biopsy = rawData.biopsy || "N/A";
+
   return (
     <div
       draggable
       onDragStart={handleDragStart}
       onClick={handleClick}
-      className={`absolute left-1 right-1 rounded text-xs text-white p-1 cursor-pointer hover:brightness-110 shadow-sm hover:shadow-md transition-all ${
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+      className={`group absolute left-1 right-1 z-30 rounded text-xs text-white px-2 py-1 cursor-pointer hover:brightness-110 shadow-sm hover:shadow-md transition-all ${
         statusColor[event.status] ?? "bg-gray-400"
       }`}
       style={{
@@ -70,7 +86,79 @@ export default function CalendarEventItem({ event }: { event: CalendarEvent }) {
         height,
       }}
     >
-      {event.patientName}
+      {/* Event label */}
+      <div className="truncate font-medium">
+        {event.patientName}
+      </div>
+  
+      {/* 🔥 Tooltip */}
+      {showTooltip && (
+        <div
+          className="
+            absolute
+            left-full
+            ml-3
+            top-1/2
+            -translate-y-1/2
+            w-64
+            z-[9999]
+            pointer-events-none
+          "
+        >
+          <div className="relative bg-gray-900 text-white text-xs rounded-lg shadow-2xl p-3 border border-gray-700">
+            
+            {/* Arrow */}
+            <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-0 h-0 border-t-8 border-b-8 border-r-8 border-transparent border-r-gray-900" />
+  
+            <div className="space-y-1.5">
+              <div className="font-semibold text-sm border-b border-gray-700 pb-1 mb-2">
+                {event.patientName}
+              </div>
+  
+              <div className="grid grid-cols-[90px_1fr] gap-x-2 gap-y-1">
+                <span className="text-gray-400">Time:</span>
+                <span className="font-medium">
+                  {formatTime12Hour(event.start)}
+                </span>
+  
+                <span className="text-gray-400">Doctor:</span>
+                <span>{doctor}</span>
+  
+                <span className="text-gray-400">Oocytes:</span>
+                <span>{oocytes}</span>
+  
+                <span className="text-gray-400">Trigger:</span>
+                <span>{triggerDate}</span>
+  
+                <span className="text-gray-400">Day:</span>
+                <span>{day}</span>
+  
+                {service !== "N/A" && (
+                  <>
+                    <span className="text-gray-400">Service:</span>
+                    <span>{service}</span>
+                  </>
+                )}
+  
+                {biopsy !== "N/A" && (
+                  <>
+                    <span className="text-gray-400">Biopsy:</span>
+                    <span>{biopsy}</span>
+                  </>
+                )}
+  
+                <span className="text-gray-400">Status:</span>
+                <span className="capitalize">
+                  {event.status
+                    .toLowerCase()
+                    .replace(/_/g, " ")}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+  
 }

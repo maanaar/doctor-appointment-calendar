@@ -45,7 +45,7 @@ export default function DayView() {
   }
 
   return (
-    <div className="flex flex-1 overflow-auto relative">
+    <div className="flex flex-1 overflow-visible relative">
       {specialties.length === 0 && (
         <div className="p-4 text-gray-500">
           No specialties/columns to show. Doctors: {doctors.length}, Events: {events.length}

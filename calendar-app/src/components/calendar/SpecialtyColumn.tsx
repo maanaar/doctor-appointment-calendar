@@ -61,7 +61,28 @@ export default function SpecialtyColumn({
       const rect = gridRef.current.getBoundingClientRect();
       const y = e.clientY - rect.top;
       const slotIndex = Math.floor(y / SLOT_HEIGHT);
-      setDropIndicator(slotIndex);
+      
+      // Only show indicator if it's a valid bookable slot
+      const isStep = slotIndex % stepSlots === 0;
+      const minutesFromStart = slotIndex * SLOT_MINUTES;
+      const hour = START_HOUR + Math.floor(minutesFromStart / 60);
+      const minute = minutesFromStart % 60;
+      
+      const displayHour = ((hour - 1) % 12) + 1;
+      const ampm = hour < 12 ? "AM" : "PM";
+      const time12 = `${displayHour.toString().padStart(2, "0")}:${minute
+        .toString()
+        .padStart(2, "0")} ${ampm}`;
+      
+      const isAvailable = !availableSet || availableSet.size === 0
+        ? true
+        : availableSet.has(time12);
+      
+      if (isStep && isAvailable) {
+        setDropIndicator(slotIndex);
+      } else {
+        setDropIndicator(null);
+      }
     }
   };
 
@@ -74,24 +95,51 @@ export default function SpecialtyColumn({
     setDropIndicator(null);
 
     const eventId = e.dataTransfer.getData("eventId");
-    const duration = Number(e.dataTransfer.getData("duration"));
+    const originalDoctorId = e.dataTransfer.getData("originalDoctorId");
 
     if (!eventId || !gridRef.current) return;
 
     const rect = gridRef.current.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const slotIndex = Math.floor(y / SLOT_HEIGHT);
+    
+    // Validate drop location
+    const isStep = slotIndex % stepSlots === 0;
     const minutesFromStart = slotIndex * SLOT_MINUTES;
+    const hour = START_HOUR + Math.floor(minutesFromStart / 60);
+    const minute = minutesFromStart % 60;
+    
+    const displayHour = ((hour - 1) % 12) + 1;
+    const ampm = hour < 12 ? "AM" : "PM";
+    const time12 = `${displayHour.toString().padStart(2, "0")}:${minute
+      .toString()
+      .padStart(2, "0")} ${ampm}`;
+    
+    const isAvailable = !availableSet || availableSet.size === 0
+      ? true
+      : availableSet.has(time12);
+    
+    if (!isStep || !isAvailable) {
+      console.log("Cannot drop here - invalid slot");
+      return;
+    }
 
-    const newStartHour = START_HOUR + Math.floor(minutesFromStart / 60);
-    const newStartMinute = minutesFromStart % 60;
+    const newStartHour = hour;
+    const newStartMinute = minute;
 
     const newStart = new Date(selectedDate);
     newStart.setHours(newStartHour, newStartMinute, 0, 0);
 
-    const newEnd = new Date(newStart.getTime() + duration * 60000);
+    // End time is same as start time (single slot)
+    const newEnd = new Date(newStart);
 
-    updateEventTime(eventId, newStart, newEnd);
+    // Check if we're moving to a different specialty column
+    const isDifferentColumn = originalDoctorId !== specialty;
+    
+    console.log(`Dropping event ${eventId} at ${time12} in ${specialty}${isDifferentColumn ? ` (moved from ${originalDoctorId})` : ''}`);
+    
+    // Pass the new specialty as doctorId if moving between columns
+    updateEventTime(eventId, newStart, newEnd, isDifferentColumn ? specialty : undefined);
   };
 
   // Click on empty cell to create new appointment
@@ -120,7 +168,8 @@ export default function SpecialtyColumn({
 
   return (
     <div className="min-w-[260px] border-r relative bg-slate-50">
-      <div className="sticky top-0 bg-white border-b p-2 z-10 h-10 flex items-center">
+      {/* Fixed height header (h-10 = 40px) to match TimeColumn and DayColumn */}
+      <div className="sticky top-0 bg-white border-b h-10 flex items-center px-2 z-10">
         <p className="text-sm font-semibold">{specialty}</p>
       </div>
 
@@ -160,8 +209,8 @@ export default function SpecialtyColumn({
               onClick={() => handleCellClick(i, clickable)}
               className={`border-b transition-colors ${
                 clickable
-                  ? "cursor-pointer hover:bg-blue-50"
-                  : "cursor-default bg-slate-50"
+                  ? "cursor-pointer hover:bg-blue-50 bg-white"
+                  : "cursor-not-allowed bg-gray-100"
               } ${dropIndicator === i ? "bg-emerald-100" : ""}`}
             />
           );
@@ -174,4 +223,3 @@ export default function SpecialtyColumn({
     </div>
   );
 }
-

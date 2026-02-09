@@ -42,7 +42,6 @@ export default function DayColumn({ day, events }: DayColumnProps) {
     setDropIndicator(null);
 
     const eventId = e.dataTransfer.getData("eventId");
-    const duration = Number(e.dataTransfer.getData("duration"));
 
     if (!eventId || !gridRef.current) return;
 
@@ -57,20 +56,24 @@ export default function DayColumn({ day, events }: DayColumnProps) {
     const newStart = new Date(day);
     newStart.setHours(newStartHour, newStartMinute, 0, 0);
 
-    const newEnd = new Date(newStart.getTime() + duration * 60000);
+    // End time is same as start time (single slot)
+    const newEnd = new Date(newStart);
 
     updateEventTime(eventId, newStart, newEnd);
   };
 
   return (
     <div className="min-w-[180px] border-r relative bg-slate-50">
-      <div className="sticky top-0 h-10 flex flex-col justify-center bg-white border-b px-2 z-10">
-        <span className="text-xs font-semibold text-gray-800">
-          {label.split(" ")[0]}
-        </span>
-        <span className="text-[11px] text-gray-500">
-          {label.split(" ").slice(1).join(" ")}
-        </span>
+      {/* Fixed height header (h-10 = 40px) to match TimeColumn */}
+      <div className="sticky top-0 h-10 flex items-center justify-center bg-white border-b px-2 z-10">
+        <div className="text-center">
+          <div className="text-xs font-semibold text-gray-800">
+            {label.split(" ")[0]}
+          </div>
+          <div className="text-[11px] text-gray-500">
+            {label.split(" ").slice(1).join(" ")}
+          </div>
+        </div>
       </div>
 
       <div
