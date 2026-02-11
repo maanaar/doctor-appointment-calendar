@@ -1,3 +1,4 @@
+// Fixed types/booking.ts
 // Types for the booking popup that match Odoo's ivf.inpatient.onthf model
 
 export interface BookingFormData {
@@ -25,15 +26,34 @@ export interface BookingFormData {
   primaryDoctorId?: number;
   primaryDoctorName: string;
   requestedServices: number[];
+
+  // ✅ ADDED: Additional services field
+  additionalServices?: string;
+
+  // Clinical
   noOfOocytes: string;
   semenSource: SemenSource | "";
   day: string;
   biopsy: BiopsyType | "";
   service: string; // Retrieval service (ICSI/Accuvit)
+
+  // ✅ ADDED: Retrieval / Financial fields
+  serviceForRetrieval?: string;
+  amount?: string;
+
+  // ✅ ADDED: Trigger dates
+  triggerDate?: string;
+  actualTriggerDate?: string;
+
   notes: string;
 
   // State
   onthfState1: "onthefly" | "confirmed";
+
+  // ✅ ADDED: Confirmation tracking fields
+  wlUndoId?: number;
+  onthfUndoIds?: string;
+  confirmService?: boolean;
 }
 
 export type SemenSource =
@@ -90,20 +110,35 @@ export const DEFAULT_BOOKING_FORM: BookingFormData = {
   patientAge: "",
   mfn: "",
   mrn: "",
+
   coupleName: "",
   couplePhone: "",
   coupleAge: "",
   coupleMrn: "",
+
   cycleName: "",
   triggerAppDate: "",
   trAppointmentTime: "",
   primaryDoctorName: "",
   requestedServices: [],
+  additionalServices: "",
+
   noOfOocytes: "",
   semenSource: "",
   day: "",
   biopsy: "",
   service: "",
+
+  serviceForRetrieval: "",
+  amount: "",
+  triggerDate: "",
+  actualTriggerDate: "",
+
   notes: "",
   onthfState1: "confirmed",
+
+  // ✅ ADDED: Default values for new fields
+  wlUndoId: undefined,
+  onthfUndoIds: "",
+  confirmService: false,
 };

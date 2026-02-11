@@ -7,14 +7,15 @@ export type AppointmentStatus =
   | "PAID"
   | "CLOSED";
 
+// types/calendar.ts
 export interface CalendarEvent {
   id: string;
   patientName: string;
   doctorId: string;
-  start: string; // ISO datetime string
-  end: string; // ISO datetime string
+  start: string;
+  end: string;
   status: AppointmentStatus;
-  _raw?: {
+  _raw?: {  // ✅ Add this
     couple?: string;
     oocyte?: string;
     service?: string;
