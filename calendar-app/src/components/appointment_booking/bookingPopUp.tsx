@@ -1,4 +1,4 @@
-// Fixed bookingPopUp.tsx - With Undo/Edit button after confirmation
+// bookingPopUp.tsx - PRODUCTION READY
 
 import { useState, useEffect } from "react";
 import {
@@ -13,7 +13,7 @@ interface BookingPopUpProps {
   onClose: () => void;
   onSave: (data: BookingFormData) => void;
   onConfirm?: () => void;
-  onUndo?: () => void;  // ✅ NEW: Undo handler
+  onUndo?: () => void;
   initialData?: Partial<BookingFormData>;
   doctors?: { id: number; name: string }[];
   patients?: { id: number; name: string; mobile?: string; mfn?: string; mrn?: string }[];
@@ -22,36 +22,17 @@ interface BookingPopUpProps {
   cycles?: { id: number; name: string }[];
 }
 
-function generateTimeSlots(cycleName: string): string[] {
-  const slots: string[] = [];
-  const interval = cycleName === "IUI" ? 20 : 15;
-  
-  for (let hour = 8; hour <= 14; hour++) {
-    const maxMinutes = (hour === 14) ? 45 : 60;
-    
-    for (let minute = 0; minute < maxMinutes; minute += interval) {
-      const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-      const ampm = hour < 12 ? "AM" : "PM";
-      const timeStr = `${hour12.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")} ${ampm}`;
-      slots.push(timeStr);
-    }
-  }
-  
-  return slots;
-}
-
 export default function BookingPopUp({
   isOpen,
   onClose,
   onSave,
   onConfirm,
-  onUndo,  // ✅ NEW
+  onUndo,
   initialData,
   doctors = [],
   patients = [],
   services = [],
   mode = "create",
-  // cycles = [],
 }: BookingPopUpProps) {
   const [formData, setFormData] = useState<BookingFormData>(
     DEFAULT_BOOKING_FORM
@@ -59,8 +40,7 @@ export default function BookingPopUp({
 
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [isUndoing, setIsUndoing] = useState(false);  // ✅ NEW
-  const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const [isUndoing, setIsUndoing] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -84,11 +64,11 @@ export default function BookingPopUp({
     setIsConfirmed(alreadyConfirmed);
   }, [initialData, isOpen]);
 
-  useEffect(() => {
-    const cycleName = formData.cycleName || "";
-    const slots = generateTimeSlots(cycleName);
-    setTimeSlots(slots);
-  }, [formData.cycleName]);
+  // useEffect(() => {
+  //   const cycleName = formData.cycleName || "";
+  //   const slots = generateTimeSlots(cycleName);
+  //   setTimeSlots(slots);
+  // }, [formData.cycleName]);
 
   if (!isOpen) return null;
 
@@ -117,22 +97,29 @@ export default function BookingPopUp({
       patientId: id,
       patientName: patient?.name || "",
       patientPhone: patient?.mobile || "",
-      mfn: patient?.mfn || "",
+      mfn:
+      patient?.mfn ||
+      (patient as any)?.mfn_number ||
+      (patient as any)?.medical_file_number ||
+      (patient as any)?.file_no ||
+      "",  
       mrn: patient?.mrn || "",
     }));
   };
 
-  // const handleCycleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-  //   const id = parseInt(e.target.value);
-  //   const cycle = cycles.find((c) => c.id === id);
+  // ✅ NEW: Handle couple selection (also a patient)
+  const handleCoupleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = parseInt(e.target.value);
+    const couple = patients.find((p) => p.id === id);
 
-  //   setFormData((prev) => ({
-  //     ...prev,
-  //     cycleId: id,
-  //     cycleName: cycle?.name || "",
-  //     trAppointmentTime: "",
-  //   }));
-  // };
+    setFormData((prev) => ({
+      ...prev,
+      coupleId: id,
+      coupleName: couple?.name || "",
+      couplePhone: couple?.mobile || "",
+      coupleMrn: couple?.mrn || "",
+    }));
+  };
 
   const handleServicesChange = (ids: number[]) => {
     setFormData((prev) => ({
@@ -197,7 +184,6 @@ export default function BookingPopUp({
     }
   };
 
-  // ✅ NEW: Undo handler
   const handleUndo = async () => {
     if (!onUndo) return;
 
@@ -218,7 +204,7 @@ export default function BookingPopUp({
       await onUndo();
       setIsConfirmed(false);
       alert("✅ Confirmation undone successfully!\n\nAppointment is now editable again.");
-      onClose();  // Close and refresh
+      onClose();
     } catch (error) {
       console.error("Undo error:", error);
       alert("❌ Failed to undo confirmation. Please try again.");
@@ -234,7 +220,6 @@ export default function BookingPopUp({
     "block text-sm font-medium text-gray-700 mb-1.5";
 
   const isReadOnly = isConfirmed && mode === "edit";
-  // const interval =s formData.cycleName === "IUI" ? 20 : 15;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -256,16 +241,16 @@ export default function BookingPopUp({
                 ? "Confirmed Appointment"
                 : "Edit Appointment"}
             </h2>
-            {isConfirmed && (
+            {formData.cycleName && (
               <p className="text-sm text-white/90 mt-1">
-                ✓ Day handling has been triggered
+                {formData.cycleName} {isConfirmed && "• Day handling triggered"}
               </p>
             )}
           </div>
 
           <button 
             onClick={onClose}
-            className="text-white hover:text-gray-200 text-2xl leading-none"
+            className="text-black hover:text-gray-200 text-2xl leading-none"
           >
             ✕
           </button>
@@ -283,7 +268,6 @@ export default function BookingPopUp({
                 </span>
               </div>
               
-              {/* ✅ NEW: Undo button in banner */}
               {onUndo && (
                 <button
                   onClick={handleUndo}
@@ -302,25 +286,13 @@ export default function BookingPopUp({
             onSubmit={handleSubmit}
             className="p-6 space-y-6"
           >
-            {/* Patient */}
-            <div>
-              <label className={labelClass}>Patient *</label>
-              <select
-                name="patientId"
-                value={formData.patientId || ""}
-                onChange={handlePatientChange}
-                className={inputClass}
-                required
-                disabled={isReadOnly}
-              >
-                <option value="">Select Patient</option>
-                {patients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} {p.mfn ? `(${p.mfn})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Hidden fields */}
+            <input type="hidden" name="cycleId" value={formData.cycleId || ""} />
+            <input type="hidden" name="cycleName" value={formData.cycleName || ""} />
+            <input type="hidden" name="triggerAppDate" value={formData.triggerAppDate || ""} />
+            <input type="hidden" name="trAppointmentTime" value={formData.trAppointmentTime || ""} />
+
+            {/* Medical File Number (MFN) - Full width */}
             <div>
               <label className={labelClass}>Medical File Number (MFN)</label>
               <input
@@ -329,52 +301,87 @@ export default function BookingPopUp({
                 value={formData.mfn || ""}
                 onChange={handleChange}
                 className={inputClass}
-                placeholder="Medical File Number"
+                placeholder="Enter MFN"
                 disabled={isReadOnly}
               />
             </div>
 
-            {/* Doctor */}
-            <div>
-              <label className={labelClass}>Doctor *</label>
-              <select
-                name="primaryDoctorId"
-                value={formData.primaryDoctorId || ""}
-                onChange={handleChange}
-                className={inputClass}
-                required
-                disabled={isReadOnly}
-              >
-                <option value="">Select Doctor</option>
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
+            {/* Patient Name & Couple Name - Side by side */}
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className={labelClass}>Patient Name *</label>
+                <select
+                  name="patientId"
+                  value={formData.patientId || ""}
+                  onChange={handlePatientChange}
+                  className={inputClass}
+                  required
+                  disabled={isReadOnly}
+                >
+                  <option value="">Select Patient</option>
+                  {patients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className={labelClass}>Couple Name</label>
+                <select
+                  name="coupleId"
+                  value={formData.coupleId || ""}
+                  onChange={handleCoupleChange}
+                  className={inputClass}
+                  disabled={isReadOnly}
+                >
+                  <option value="">Select Couple</option>
+                  {patients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+              
+            {/* Referral Doctor & Amount - Side by side */}
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className={labelClass}>Referral Doctor *</label>
+                <select
+                  name="primaryDoctorId"
+                  value={formData.primaryDoctorId || ""}
+                  onChange={handleChange}
+                  className={inputClass}
+                  required
+                  disabled={isReadOnly}
+                >
+                  <option value="">Select Doctor</option>
+                  {doctors.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className={labelClass}>Amount</label>
+                <input
+                  type="text"
+                  name="amount"
+                  value={formData.amount || ""}
+                  onChange={handleChange}
+                  className={inputClass}
+                  placeholder="Enter amount"
+                  disabled={isReadOnly}
+                />
+              </div>
             </div>
 
-            {/* Cycle/Service
-            <div>
-              <label className={labelClass}>Cycle / Service *</label>
-              <select
-                name="cycleId"
-                value={formData.cycleId || ""}
-                onChange={handleCycleChange}
-                className={inputClass}
-                required
-                disabled={isReadOnly}
-              >
-                <option value="">Select Cycle/Service</option>
-                {cycles.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div> */}
-
-            {/* Requested Services */}
+            {/* Requested Services - Full width */}
             <OdooMultiSelect
               services={services}
               selectedIds={formData.requestedServices}
@@ -384,91 +391,112 @@ export default function BookingPopUp({
               placeholder="Select services..."
             />
 
-            {/* Appointment Date */}
-            <div>
-              <label className={labelClass}>Appointment Date *</label>
-              <input
-                type="date"
-                name="triggerAppDate"
-                value={formData.triggerAppDate}
-                onChange={handleChange}
-                className={inputClass}
-                required
-                disabled={isReadOnly}
-              />
+            {/* Notes & Confirm Button - Side by side */}
+            <div className="grid grid-cols-2 gap-6 items-start">
+              <div>
+                <label className={labelClass}>Notes</label>
+                <textarea
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleChange}
+                  className={inputClass}
+                  rows={3}
+                  placeholder="Add any additional notes..."
+                  disabled={isReadOnly}
+                />
+              </div>
+
+              <div className="flex items-center justify-center h-full pt-6">
+                {!isConfirmed && onConfirm && (
+                  <button
+                    type="button"
+                    onClick={handleConfirm}
+                    disabled={isConfirming}
+                    className="w-[70%] h-10 px-4 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isConfirming ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Confirming...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        Confirm
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {isConfirmed && onUndo && (
+                  <button
+                    type="button"
+                    onClick={handleUndo}
+                    disabled={isUndoing}
+                    className="w-full px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isUndoing ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Undoing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                        </svg>
+                        Undo & Edit
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Time Slot */}
-            <div>
-              <label className={labelClass}>Time Slot *</label>
-              <select
-                name="trAppointmentTime"
-                value={formData.trAppointmentTime}
-                onChange={handleChange}
-                className={inputClass}
-                required
-                disabled={isReadOnly || !formData.cycleId}
-              >
-                <option value="">
-                  {formData.cycleId ? "Select time slot" : "Please select a cycle first"}
-                </option>
-                {timeSlots.map((slot) => (
-                  <option key={slot} value={slot}>
-                    {slot}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* No of oocytes & Sperm Source - Side by side */}
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className={labelClass}>No of oocytes</label>
+                <input
+                  type="text"
+                  name="noOfOocytes"
+                  value={formData.noOfOocytes}
+                  onChange={handleChange}
+                  className={inputClass}
+                  placeholder="e.g., 10"
+                  disabled={isReadOnly}
+                />
+              </div>
 
-            {/* Semen Source */}
-            <div>
-              <label className={labelClass}>Semen Source</label>
-              <select
-                name="semenSource"
-                value={formData.semenSource}
-                onChange={handleChange}
-                className={inputClass}
-                disabled={isReadOnly}
-              >
-                <option value="">Select</option>
-                {SEMEN_SOURCE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Number of Oocytes */}
-            <div>
-              <label className={labelClass}>Number of Oocytes</label>
-              <input
-                type="text"
-                name="noOfOocytes"
-                value={formData.noOfOocytes}
-                onChange={handleChange}
-                className={inputClass}
-                placeholder="e.g., 10"
-                disabled={isReadOnly}
-              />
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className={labelClass}>Notes</label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                className={inputClass}
-                rows={3}
-                placeholder="Add any additional notes..."
-                disabled={isReadOnly}
-              />
+              <div>
+                <label className={labelClass}>Sperm Source</label>
+                <select
+                  name="semenSource"
+                  value={formData.semenSource}
+                  onChange={handleChange}
+                  className={inputClass}
+                  disabled={isReadOnly}
+                >
+                  <option value="">Select</option>
+                  {SEMEN_SOURCE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            <div className="flex sticky bottom-0 justify-end gap-3 pt-4 border-t">
               <button
                 type="button"
                 onClick={onClose}
@@ -477,61 +505,6 @@ export default function BookingPopUp({
                 {isReadOnly ? "Close" : "Cancel"}
               </button>
 
-              {/* ✅ Confirm button - only when NOT confirmed */}
-              {mode === "edit" && !isConfirmed && onConfirm && (
-                <button
-                  type="button"
-                  onClick={handleConfirm}
-                  disabled={isConfirming}
-                  className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isConfirming ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Confirming...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      Confirm Appointment
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* ✅ NEW: Undo button - only when confirmed */}
-              {mode === "edit" && isConfirmed && onUndo && (
-                <button
-                  type="button"
-                  onClick={handleUndo}
-                  disabled={isUndoing}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isUndoing ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Undoing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                      </svg>
-                      Undo & Edit
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Save button - only when NOT read-only */}
               {!isReadOnly && (
                 <button
                   type="submit"
