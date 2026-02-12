@@ -9,6 +9,7 @@ import CalendarLayout from "../components/calendar/calenderLayout";
 import BookingPopUp from "../components/appointment_booking/bookingPopUp";
 import { useCalendarStore } from "../store/calendarStore";
 import type { BookingFormData } from "../types/booking";
+import { undoAppointment } from "../api/odoo";
 import { 
   createAppointment, 
   fetchBookingMeta,
@@ -136,7 +137,7 @@ export default function CalendarPage() {
 
     try {
       await confirmAppointment(selectedEvent.id);
-      closeBookingPopup();
+      // closeBookingPopup();
 
       if (view === "week") {
         await loadWeek(selectedDate);
@@ -148,37 +149,37 @@ export default function CalendarPage() {
       alert(`Failed to confirm appointment:\n${e instanceof Error ? e.message : e}`);
     }
   };
-// const handleUndoAppointment = async () => {
-//   if (!selectedEvent) {
-//     alert("No appointment selected");
-//     return;
-//   }
+  const handleUndoAppointment = async () => {
+    if (!selectedEvent) {
+      alert("No appointment selected");
+      return;
+    }
 
-//   try {
-//     console.log("=== Undoing Appointment Confirmation ===");
-//     console.log("Appointment ID:", selectedEvent.id);
+    try {
+      console.log("=== Undoing Appointment Confirmation ===");
+      console.log("Appointment ID:", selectedEvent.id);
 
-//     await undoAppointment(selectedEvent.id);
+      await undoAppointment(selectedEvent.id);
 
-//     console.log("✅ Appointment confirmation undone successfully");
+      console.log("✅ Appointment confirmation undone successfully");
 
-//     closeBookingPopup();
+      closeBookingPopup();
 
-//     // Refresh to show updated status
-//     if (view === "week") {
-//       await loadWeek(selectedDate);
-//     } else {
-//       await loadData({ date: selectedDate });
-//     }
-//   } catch (e) {
-//     console.error("❌ Failed to undo:", e);
-//     alert(
-//       `Failed to undo confirmation:\n${
-//         e instanceof Error ? e.message : e
-//       }`
-//     );
-//   }
-// };
+      // Refresh to show updated status
+      if (view === "week") {
+        await loadWeek(selectedDate);
+      } else {
+        await loadData({ date: selectedDate });
+      }
+    } catch (e) {
+      console.error("❌ Failed to undo:", e);
+      alert(
+        `Failed to undo confirmation:\n${
+          e instanceof Error ? e.message : e
+        }`
+      );
+    }
+  };
   // ✅ SUPER DETAILED DEBUG VERSION
   const getInitialData = (): Partial<BookingFormData> => {
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -333,6 +334,7 @@ export default function CalendarPage() {
         onClose={closeBookingPopup}
         onSave={handleSaveBooking}
         onConfirm={handleConfirmAppointment}
+        onUndo={handleUndoAppointment}
         initialData={getInitialData()}
         doctors={doctorOptions}
         patients={patientOptions}
