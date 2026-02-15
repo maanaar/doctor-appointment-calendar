@@ -142,7 +142,7 @@ export default function SpecialtyColumn({
     updateEventTime(eventId, newStart, newEnd, isDifferentColumn ? specialty : undefined);
   };
 
-  // Click on empty cell to create new appointment
+  // ✅ FIXED: Click on empty cell to create new appointment
   const handleCellClick = (slotIndex: number, isBookable: boolean) => {
     if (!isBookable) return;
 
@@ -163,7 +163,8 @@ export default function SpecialtyColumn({
       String(hour).padStart(2, "0") + ":" +
       String(minute).padStart(2, "0") + ":00";
     
-    openNewBooking(dateStr + "T" + timeStr, timeStr);
+    // ✅ FIXED: Pass the specialty as the cycle ID (3rd parameter)
+    openNewBooking(dateStr + "T" + timeStr, timeStr, specialty);
   };
 
   return (

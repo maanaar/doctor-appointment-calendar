@@ -104,7 +104,7 @@ export default function CalendarEventItem({ event }: { event: CalendarEvent }) {
       onClick={handleClick}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
-      className={`group absolute left-1 right-1 z-30 rounded text-xs text-white px-2 py-1 ${
+      className={`group absolute left-1 right-1 ${showTooltip ? 'z-[10000]' : 'z-30'} rounded text-xs text-white px-2 py-1 ${
         isDraggable ? 'cursor-move' : 'cursor-pointer'
       } hover:brightness-110 shadow-sm hover:shadow-md transition-all ${
         statusColor[event.status] ?? "bg-gray-400"

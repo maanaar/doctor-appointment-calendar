@@ -61,6 +61,10 @@ export default function OdooMultiSelect({
       // Add
       onChange([...selectedIds, serviceId]);
     }
+    // Clear search term after selection
+    setSearchTerm("");
+    // Keep dropdown open for multiple selections
+    // Don't close the dropdown
   };
 
   const handleRemoveService = (serviceId: number, e: React.MouseEvent) => {
@@ -151,7 +155,10 @@ export default function OdooMultiSelect({
 
       {/* Dropdown List */}
       {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <div
+          className="absolute z-[9999] w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           {filteredServices.length === 0 ? (
             <div className="px-3 py-2 text-sm text-gray-500 text-center">
               No services found
@@ -163,7 +170,10 @@ export default function OdooMultiSelect({
                 return (
                   <li
                     key={service.id}
-                    onClick={() => handleToggleService(service.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleService(service.id);
+                    }}
                     className={`
                       px-3 py-2 text-sm cursor-pointer flex items-center justify-between
                       ${isSelected ? 'bg-emerald-50 text-emerald-900' : 'text-gray-900 hover:bg-gray-50'}

@@ -7,12 +7,14 @@ import {
   type BookingFormData,
 } from "../../types/booking";
 import OdooMultiSelect from "../input/Odoomultiselect ";
+import SearchableSelect from "../input/SearchableSelect";
 
 interface BookingPopUpProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: BookingFormData) => void;
   onConfirm?: () => void;
+  onCreateAndConfirm?: (data: BookingFormData) => void;
   onUndo?: () => void;
   initialData?: Partial<BookingFormData>;
   doctors?: { id: number; name: string }[];
@@ -22,11 +24,44 @@ interface BookingPopUpProps {
   cycles?: { id: number; name: string }[];
 }
 
+// Helper function to calculate trigger date (appointment date - 36 hours)
+function calculateTriggerDate(appointmentDate: string, appointmentTime: string): string {
+  try {
+    // Parse time in format "HH:MM AM/PM"
+    const timeMatch = appointmentTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!timeMatch) return "";
+
+    let hours = parseInt(timeMatch[1]);
+    const minutes = parseInt(timeMatch[2]);
+    const meridiem = timeMatch[3].toUpperCase();
+
+    // Convert to 24-hour format
+    if (meridiem === "PM" && hours !== 12) {
+      hours += 12;
+    } else if (meridiem === "AM" && hours === 12) {
+      hours = 0;
+    }
+
+    // Create appointment datetime
+    const appDateTime = new Date(`${appointmentDate}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`);
+
+    // Subtract 36 hours
+    const triggerDateTime = new Date(appDateTime.getTime() - (36 * 60 * 60 * 1000));
+
+    // Return as YYYY-MM-DD format
+    return triggerDateTime.toISOString().slice(0, 10);
+  } catch (e) {
+    console.error("Error calculating trigger date:", e);
+    return "";
+  }
+}
+
 export default function BookingPopUp({
   isOpen,
   onClose,
   onSave,
   onConfirm,
+  onCreateAndConfirm,
   onUndo,
   initialData,
   doctors = [],
@@ -50,6 +85,8 @@ export default function BookingPopUp({
       return;
     }
 
+    console.log("🔵 BookingPopUp - Received initialData:", initialData);
+
     const merged: BookingFormData = {
       ...DEFAULT_BOOKING_FORM,
       ...initialData,
@@ -58,11 +95,42 @@ export default function BookingPopUp({
         new Date().toISOString().split("T")[0],
     };
 
+    console.log("🔵 BookingPopUp - Merged formData:", {
+      patientId: merged.patientId,
+      patientName: merged.patientName,
+      mfn: merged.mfn,
+      coupleId: merged.coupleId,
+      coupleName: merged.coupleName,
+      primaryDoctorId: merged.primaryDoctorId,
+      cycleId: merged.cycleId,
+      cycleName: merged.cycleName,
+      triggerAppDate: merged.triggerAppDate,
+      trAppointmentTime: merged.trAppointmentTime,
+    });
+
+    console.log("🔵 cycleName check:", merged.cycleName ? `'${merged.cycleName}' (truthy)` : "(falsy - dates section won't show!)");
+
     setFormData(merged);
 
     const alreadyConfirmed = !!(initialData?.wlUndoId);
     setIsConfirmed(alreadyConfirmed);
   }, [initialData, isOpen]);
+
+  // Auto-calculate trigger dates for Retrieval cycle
+  useEffect(() => {
+    if (formData.cycleName === "Retrieval" && formData.triggerAppDate && formData.trAppointmentTime) {
+      const calculatedTriggerDate = calculateTriggerDate(formData.triggerAppDate, formData.trAppointmentTime);
+
+      if (calculatedTriggerDate) {
+        setFormData((prev) => ({
+          ...prev,
+          triggerDate: calculatedTriggerDate,
+          // Set actual trigger date only if not already set
+          actualTriggerDate: prev.actualTriggerDate || calculatedTriggerDate,
+        }));
+      }
+    }
+  }, [formData.cycleName, formData.triggerAppDate, formData.trAppointmentTime]);
 
   // useEffect(() => {
   //   const cycleName = formData.cycleName || "";
@@ -128,6 +196,73 @@ export default function BookingPopUp({
     }));
   };
 
+  const handleCreateNewPatient = async (name: string) => {
+    try {
+      // Import the API function
+      const { createPatient } = await import("../../api/odoo");
+
+      console.log("Creating new patient:", name);
+
+      // Call API to create patient in Odoo
+      const result = await createPatient(name, "");
+
+      if (!result.success) {
+        alert(`Failed to create patient: ${result.error || "Unknown error"}`);
+        return;
+      }
+
+      console.log("Patient created successfully:", result);
+
+      // Update form with the newly created patient
+      setFormData((prev) => ({
+        ...prev,
+        patientId: result.patient_id,
+        patientName: result.patient_name || name,
+        patientPhone: result.mobile || "",
+        mfn: result.mfn || "",
+        mrn: result.mrn || "",
+      }));
+
+      alert(`✅ Patient "${result.patient_name}" created successfully!\n\nYou can now continue filling the appointment form.`);
+    } catch (error) {
+      console.error("Failed to create patient:", error);
+      alert(`Failed to create patient: ${error instanceof Error ? error.message : error}`);
+    }
+  };
+
+  const handleCreateNewCouple = async (name: string) => {
+    try {
+      // Import the API function
+      const { createPatient } = await import("../../api/odoo");
+
+      console.log("Creating new spouse:", name);
+
+      // Call API to create couple (also a patient) in Odoo
+      const result = await createPatient(name, "");
+
+      if (!result.success) {
+        alert(`Failed to create spouse: ${result.error || "Unknown error"}`);
+        return;
+      }
+
+      console.log("Spouse created successfully:", result);
+
+      // Update form with the newly created couple
+      setFormData((prev) => ({
+        ...prev,
+        coupleId: result.patient_id,
+        coupleName: result.patient_name || name,
+        couplePhone: result.mobile || "",
+        coupleMrn: result.mrn || "",
+      }));
+
+      alert(`✅ Spouse "${result.patient_name}" created successfully!\n\nYou can now continue filling the appointment form.`);
+    } catch (error) {
+      console.error("Failed to create spouse:", error);
+      alert(`Failed to create spouse: ${error instanceof Error ? error.message : error}`);
+    }
+  };
+
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
 
@@ -160,27 +295,77 @@ export default function BookingPopUp({
   };
 
   const handleConfirm = async () => {
-    if (!onConfirm) return;
+    // Check if we need to create first or just confirm existing
+    if (mode === "create" && onCreateAndConfirm) {
+      // Validate the form before creating and confirming
+      if (!formData.triggerAppDate) {
+        alert("Appointment date is required");
+        return;
+      }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to confirm this appointment?\n\n" +
-      "This will trigger day_handling and create follow-up appointments if applicable.\n\n" +
-      "This action can be undone later if needed."
-    );
+      if (!formData.patientId && !formData.patientName) {
+        alert("Please select a patient or enter patient name");
+        return;
+      }
 
-    if (!confirmed) return;
+      if (!formData.primaryDoctorId) {
+        alert("Please select a doctor");
+        return;
+      }
 
-    setIsConfirming(true);
+      if (!formData.cycleId) {
+        alert("Cycle is missing. Please create appointment from calendar slot.");
+        return;
+      }
 
-    try {
-      await onConfirm();
-      setIsConfirmed(true);
-      alert("✅ Appointment confirmed successfully!\n\nDay handling has been triggered.");
-    } catch (error) {
-      console.error("Confirmation error:", error);
-      alert("❌ Failed to confirm appointment. Please try again.");
-    } finally {
-      setIsConfirming(false);
+      if (!formData.trAppointmentTime) {
+        alert("Please select a time slot");
+        return;
+      }
+
+      const confirmed = window.confirm(
+        "Are you sure you want to create and confirm this appointment?\n\n" +
+        "This will:\n" +
+        "• Create the appointment in the selected slot\n" +
+        "• Trigger day_handling logic\n" +
+        "• Create follow-up appointments if applicable\n\n" +
+        "This action can be undone later if needed."
+      );
+
+      if (!confirmed) return;
+
+      setIsConfirming(true);
+
+      try {
+        await onCreateAndConfirm(formData);
+        setIsConfirmed(true);
+      } catch (error) {
+        console.error("Confirmation error:", error);
+        alert("❌ Failed to create and confirm appointment. Please try again.");
+      } finally {
+        setIsConfirming(false);
+      }
+    } else if (mode === "edit" && onConfirm) {
+      // Existing appointment - just confirm it
+      const confirmed = window.confirm(
+        "Are you sure you want to confirm this appointment?\n\n" +
+        "This will trigger day_handling and create follow-up appointments if applicable.\n\n" +
+        "This action can be undone later if needed."
+      );
+
+      if (!confirmed) return;
+
+      setIsConfirming(true);
+
+      try {
+        await onConfirm();
+        setIsConfirmed(true);
+      } catch (error) {
+        console.error("Confirmation error:", error);
+        alert("❌ Failed to confirm appointment. Please try again.");
+      } finally {
+        setIsConfirming(false);
+      }
     }
   };
 
@@ -203,11 +388,11 @@ export default function BookingPopUp({
     try {
       await onUndo();
       setIsConfirmed(false);
-      alert("✅ Confirmation undone successfully!\n\nAppointment is now editable again.");
+      // alert("✅ Confirmation undone successfully!\n\nAppointment is now editable again.");
       onClose();
     } catch (error) {
       console.error("Undo error:", error);
-      alert("❌ Failed to undo confirmation. Please try again.");
+      // alert("❌ Failed to undo confirmation. Please try again.");
     } finally {
       setIsUndoing(false);
     }
@@ -292,15 +477,15 @@ export default function BookingPopUp({
             <input type="hidden" name="triggerAppDate" value={formData.triggerAppDate || ""} />
             <input type="hidden" name="trAppointmentTime" value={formData.trAppointmentTime || ""} />
 
-            {/* Medical File Number (MFN) - Full width */}
-            <div>
-              <label className={labelClass}>Medical File Number (MFN)</label>
+            {/* Medical File Number (MFN) - Centered with margins */}
+            <div className="px-24">
+              <label className={labelClass + " text-center"}>Medical File Number (MFN)</label>
               <input
                 type="text"
                 name="mfn"
                 value={formData.mfn || ""}
                 onChange={handleChange}
-                className={inputClass}
+                className={inputClass + " text-center"}
                 placeholder="Enter MFN"
                 disabled={isReadOnly}
               />
@@ -308,64 +493,50 @@ export default function BookingPopUp({
 
             {/* Patient Name & Couple Name - Side by side */}
             <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className={labelClass}>Patient Name *</label>
-                <select
-                  name="patientId"
-                  value={formData.patientId || ""}
-                  onChange={handlePatientChange}
-                  className={inputClass}
-                  required
-                  disabled={isReadOnly}
-                >
-                  <option value="">Select Patient</option>
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SearchableSelect
+                name="patientId"
+                value={formData.patientId || ""}
+                onChange={handlePatientChange}
+                options={patients}
+                label="Patient Name"
+                placeholder="Search by name, MFN, MRN, or phone..."
+                required={true}
+                disabled={isReadOnly}
+                showMeta={true}
+                allowCreate={!isReadOnly}
+                onCreateNew={handleCreateNewPatient}
+                displayText={formData.patientId && !patients.find(p => p.id === formData.patientId) ? formData.patientName : undefined}
+              />
 
-              <div>
-                <label className={labelClass}>Couple Name</label>
-                <select
-                  name="coupleId"
-                  value={formData.coupleId || ""}
-                  onChange={handleCoupleChange}
-                  className={inputClass}
-                  disabled={isReadOnly}
-                >
-                  <option value="">Select Couple</option>
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SearchableSelect
+                name="coupleId"
+                value={formData.coupleId || ""}
+                onChange={handleCoupleChange}
+                options={patients}
+                label="Spouse Name"
+                placeholder="Search by name, MFN, MRN, or phone..."
+                required={false}
+                disabled={isReadOnly}
+                showMeta={true}
+                allowCreate={!isReadOnly}
+                onCreateNew={handleCreateNewCouple}
+                displayText={formData.coupleId && !patients.find(p => p.id === formData.coupleId) ? formData.coupleName : undefined}
+              />
             </div>
               
             {/* Referral Doctor & Amount - Side by side */}
             <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className={labelClass}>Referral Doctor *</label>
-                <select
-                  name="primaryDoctorId"
-                  value={formData.primaryDoctorId || ""}
-                  onChange={handleChange}
-                  className={inputClass}
-                  required
-                  disabled={isReadOnly}
-                >
-                  <option value="">Select Doctor</option>
-                  {doctors.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SearchableSelect
+                name="primaryDoctorId"
+                value={formData.primaryDoctorId || ""}
+                onChange={handleChange}
+                options={doctors}
+                label="Referral Doctor"
+                placeholder="Search doctor..."
+                required={true}
+                disabled={isReadOnly}
+                showMeta={false}
+              />
 
               <div>
                 <label className={labelClass}>Amount</label>
@@ -380,6 +551,61 @@ export default function BookingPopUp({
                 />
               </div>
             </div>
+
+            {/* Appointment date fields - shown only for Retrieval cycle */}
+            {formData.cycleName === "Retrieval" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+                <h3 className="text-sm font-semibold text-blue-900 mb-3">
+                  Appointment Dates
+                  <span className="text-xs font-normal text-blue-700 ml-2">
+                    (Trigger dates auto-calculated: Appointment Date - 36 hours)
+                  </span>
+                </h3>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className={labelClass}>
+                      Requested Trigger Date
+                      {formData.cycleName === "Retrieval" && (
+                        <span className="text-xs text-blue-600 ml-1">(Auto)</span>
+                      )}
+                    </label>
+                    <input
+                      type="date"
+                      name="triggerDate"
+                      value={formData.triggerDate || ""}
+                      onChange={handleChange}
+                      className={inputClass}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Actual Trigger Date</label>
+                    <input
+                      type="date"
+                      name="actualTriggerDate"
+                      value={formData.actualTriggerDate || ""}
+                      onChange={handleChange}
+                      className={inputClass}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Appointment Date</label>
+                    <input
+                      type="date"
+                      name="triggerAppDate"
+                      value={formData.triggerAppDate || ""}
+                      onChange={handleChange}
+                      className={inputClass}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Requested Services - Full width */}
             <OdooMultiSelect

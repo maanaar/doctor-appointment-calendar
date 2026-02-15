@@ -332,3 +332,25 @@ export async function fetchServices(): Promise<{ id: number; name: string }[]> {
   const res = await fetchJson<{ services: Array<{ id: number; name: string }> }>(url);
   return res.services || [];
 }
+
+/**
+ * Create a new patient in Odoo
+ * Endpoint is type="json" → JSON-RPC 2.0 envelope
+ */
+export async function createPatient(name: string, mobile?: string): Promise<{
+  success: boolean;
+  patient_id?: number;
+  patient_name?: string;
+  mfn?: string;
+  mrn?: string;
+  mobile?: string;
+  error?: string;
+}> {
+  console.log("📤 Creating patient:", { name, mobile });
+  const result = await callJsonRpc<any>(`${baseUrl}/agial/calendar/patient/create`, {
+    name,
+    mobile: mobile || "",
+  });
+  console.log("✅ Create patient result:", result);
+  return result;
+}

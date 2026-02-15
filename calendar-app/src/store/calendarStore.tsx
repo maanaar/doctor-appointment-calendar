@@ -43,7 +43,7 @@ interface CalendarState {
   loadData: (options?: { date?: Date; useDefaultDate?: boolean }) => Promise<void>;
   loadWeek: (date: Date) => Promise<void>;
   openEventPopup: (event: CalendarEvent) => void;
-  openNewBooking: (date?: string, time?: string) => void;
+  openNewBooking: (date?: string, time?: string, cycleId?: string) => void; // ✅ FIXED: Added cycleId
   closeBookingPopup: () => void;
   updating: boolean;
 }
@@ -157,9 +157,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     })),
   clearAllDoctors: () => set({ activeDoctorIds: [] }),
 
-  // store/calendarStore.ts
   updateEventTime: (eventId, newStart, newEnd, newDoctorId) => {
-    // 1️⃣ Optimistic UI update
     set((state) => ({
       events: state.events.map((e) =>
         e.id === eventId
@@ -171,10 +169,9 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
             }
           : e
       ),
-      updating: true, // ← Show loading
+      updating: true,
     }));
 
-    // 2️⃣ Backend update
     updateAppointment({
       appointment_id: eventId,
       start: toLocalIso(newStart),
@@ -198,7 +195,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
           } else {
             await loadData({ date: selectedDate });
           }
-          set({ updating: false }); // ← Clear loading
+          set({ updating: false });
         }
       })
       .catch(async (err) => {
@@ -218,10 +215,11 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   openEventPopup: (event) =>
     set({ selectedEvent: event, showBookingPopup: true, bookingMode: "edit" }),
 
-  openNewBooking: (dateTime, _time) => {
+  // ✅ FIXED: Added cycleId parameter
+  openNewBooking: (dateTime, _time, cycleId) => {
     const state = get();
     const startStr = dateTime || state.selectedDate.toISOString().slice(0, 10) + "T08:00:00";
-    // Calculate end time (30 min after start)
+    
     const startDate = new Date(startStr);
     const endDate = new Date(startDate.getTime() + 30 * 60000);
     const endStr = 
@@ -236,15 +234,19 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       String(endDate.getMinutes()).padStart(2, "0") +
       ":00";
     
+    // ✅ FIXED: Extract base cycle name (remove count suffix like " (3)")
+    const baseCycleName = cycleId ? cycleId.split(" (")[0] : "";
+    
     const newEvent: CalendarEvent = {
       id: "",
       patientName: "",
-      doctorId: "",
+      doctorId: baseCycleName || "", // ✅ FIXED: Now has the cycle name!
       start: startStr,
       end: endStr,
-      status: "ON_THE_FLY", // ✅ This sets the initial status
+      status: "ON_THE_FLY",
     };
-    console.log("Opening new booking with event:", newEvent);
+    
+    console.log("Opening new booking with cycle:", baseCycleName);
     set({ selectedEvent: newEvent, showBookingPopup: true, bookingMode: "create" });
   },
 
@@ -293,7 +295,6 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       set({
         loading: false,
         loadError: msg,
-        // keep current selectedDate, but restore demo data so UI isn't blank
         doctors: DOCTORS,
         events: EVENTS,
         activeDoctorIds: DOCTORS.map((d) => d.id),

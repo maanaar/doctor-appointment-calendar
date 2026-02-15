@@ -1,5 +1,4 @@
-// FULL DEBUG VERSION - CalendarPage.tsx
-// This will show us exactly what's happening
+// CalendarPage.tsx - COMPLETE FIXED VERSION
 
 import { useEffect, useState } from "react";
 import MiniDatePicker from "../components/sidebar/MiniDatePicker";
@@ -21,11 +20,8 @@ export default function CalendarPage() {
   const loadData = useCalendarStore((s) => s.loadData);
   const loadWeek = useCalendarStore((s) => s.loadWeek);
   const loading = useCalendarStore((s) => s.loading);
-  const doctors = useCalendarStore((s) => s.doctors);
-  // const events = useCalendarStore((s) => s.events);
+  // const doctors = useCalendarStore((s) => s.doctors);
   const selectedDate = useCalendarStore((s) => s.selectedDate);
-  // const activeDoctorIds = useCalendarStore((s) => s.activeDoctorIds);
-  // const activeStatuses = useCalendarStore((s) => s.activeStatuses);
   const view = useCalendarStore((s) => s.view);
 
   const showBookingPopup = useCalendarStore((s) => s.showBookingPopup);
@@ -106,6 +102,9 @@ export default function CalendarPage() {
         service: data.service || "",
         notes: data.notes || "",
         onthfState1: data.onthfState1 || "onthefly",
+        // Retrieval-specific date fields
+        triggerDate: data.triggerDate || "",
+        actualTriggerDate: data.actualTriggerDate || "",
       };
 
       const result = await createAppointment(payload);
@@ -137,7 +136,6 @@ export default function CalendarPage() {
 
     try {
       await confirmAppointment(selectedEvent.id);
-      // closeBookingPopup();
 
       if (view === "week") {
         await loadWeek(selectedDate);
@@ -149,6 +147,83 @@ export default function CalendarPage() {
       alert(`Failed to confirm appointment:\n${e instanceof Error ? e.message : e}`);
     }
   };
+
+  const handleCreateAndConfirm = async (data: BookingFormData) => {
+    setSaving(true);
+    try {
+      let finalDate: string;
+
+      if (data.triggerAppDate) {
+        finalDate = data.triggerAppDate;
+      } else if (selectedDate) {
+        finalDate = selectedDate.toISOString().slice(0, 10);
+      } else {
+        throw new Error("Appointment date is missing");
+      }
+
+      if (typeof finalDate !== 'string') {
+        finalDate = String(finalDate).slice(0, 10);
+      }
+
+      const payload = {
+        patientId: data.patientId || null,
+        patientName: data.patientName || "",
+        patientPhone: data.patientPhone || "",
+        coupleId: data.coupleId || null,
+        coupleName: data.coupleName || "",
+        couplePhone: data.couplePhone || "",
+        cycleId: data.cycleId || null,
+        triggerAppDate: finalDate,
+        trAppointmentTime: data.trAppointmentTime || "",
+        primaryDoctorId: data.primaryDoctorId || null,
+        requestedServices: data.requestedServices || [],
+        additionalServices: data.additionalServices || "",
+        noOfOocytes: data.noOfOocytes || "",
+        semenSource: data.semenSource || "",
+        day: data.day || "",
+        biopsy: data.biopsy || "",
+        service: data.service || "",
+        notes: data.notes || "",
+        onthfState1: data.onthfState1 || "onthefly",
+        // Retrieval-specific date fields
+        triggerDate: data.triggerDate || "",
+        actualTriggerDate: data.actualTriggerDate || "",
+      };
+
+      console.log("📝 Creating appointment...");
+      const result = await createAppointment(payload);
+
+      if (!result.success) {
+        throw new Error(result.error || "Creation failed");
+      }
+
+      const appointmentId = result.appointment_id || result.id;
+      if (!appointmentId) {
+        throw new Error("No appointment ID returned from server");
+      }
+
+      console.log("✅ Appointment created with ID:", appointmentId);
+      console.log("🔄 Confirming appointment and triggering day_handling...");
+
+      await confirmAppointment(String(appointmentId));
+
+      console.log("✅ Appointment confirmed successfully!");
+
+      closeBookingPopup();
+
+      if (view === "week") {
+        await loadWeek(selectedDate);
+      } else {
+        await loadData({ date: selectedDate });
+      }
+    } catch (e) {
+      console.error("❌ Failed:", e);
+      alert(`Failed to create and confirm appointment:\n${e instanceof Error ? e.message : e}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleUndoAppointment = async () => {
     if (!selectedEvent) {
       alert("No appointment selected");
@@ -165,7 +240,6 @@ export default function CalendarPage() {
 
       closeBookingPopup();
 
-      // Refresh to show updated status
       if (view === "week") {
         await loadWeek(selectedDate);
       } else {
@@ -173,14 +247,11 @@ export default function CalendarPage() {
       }
     } catch (e) {
       console.error("❌ Failed to undo:", e);
-      alert(
-        `Failed to undo confirmation:\n${
-          e instanceof Error ? e.message : e
-        }`
-      );
+      alert(`Failed to undo confirmation:\n${e instanceof Error ? e.message : e}`);
     }
   };
-  // ✅ SUPER DETAILED DEBUG VERSION
+
+  // ✅ FIXED: Handle both string cycle names (from calendar) AND numeric IDs (from backend)
   const getInitialData = (): Partial<BookingFormData> => {
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("🔍 getInitialData() called");
@@ -201,30 +272,48 @@ export default function CalendarPage() {
     console.log("  - doctorId:", selectedEvent.doctorId);
     console.log("  - start:", selectedEvent.start);
     console.log("  - status:", selectedEvent.status);
-    console.log("  - _raw:", selectedEvent._raw);
 
     const rawData = (selectedEvent as any)._raw || {};
-    console.log("📋 Raw Data Fields:");
-    console.log("  - patient_id:", rawData.patient_id);
-    console.log("  - primary_doctor:", rawData.primary_doctor);
-    console.log("  - requested_services_ids:", rawData.requested_services_ids);
-    console.log("  - no_of_oocytes:", rawData.no_of_oocytes);
-    console.log("  - semen_source:", rawData.semen_source);
-    console.log("  - wl_undo_id:", rawData.wl_undo_id);
 
-    // Extract cycle
+    // ✅ FIXED: Extract cycle - handle both string names AND numeric IDs
     const doctorIdStr = selectedEvent.doctorId;
     console.log("🔄 Extracting Cycle:");
     console.log("  - doctorId (string):", doctorIdStr);
     
-    const cycleId = doctorIdStr ? parseInt(doctorIdStr) : undefined;
-    console.log("  - cycleId (parsed):", cycleId);
+    let cycleId: number | undefined;
+    let cycleName: string = "";
     
-    const cycleFromDoctors = doctors.find(d => d.id === doctorIdStr);
-    console.log("  - Found in doctors array:", cycleFromDoctors);
+    if (doctorIdStr) {
+      // Remove count suffix like " (3)"
+      const baseName = doctorIdStr.split(" (")[0];
+      console.log("  - baseName:", baseName);
+      
+      // Try to find by name first (for calendar clicks like "Retrieval (3)")
+      const cycleByName = cycleOptions.find(c => c.name === baseName);
+      
+      if (cycleByName) {
+        // ✅ Found by name! (e.g., "Retrieval" → id: 10)
+        cycleId = cycleByName.id;
+        cycleName = cycleByName.name;
+        console.log("  ✅ Found cycle by name:", cycleName, "→ id:", cycleId);
+      } else {
+        // Try parsing as number (for existing appointments from backend)
+        const numericId = parseInt(doctorIdStr);
+        if (!isNaN(numericId)) {
+          cycleId = numericId;
+          const cycle = cycleOptions.find(c => c.id === numericId);
+          cycleName = cycle?.name || "";
+          console.log("  ✅ Parsed as numeric ID:", cycleId, "→ name:", cycleName);
+        } else {
+          // String but not in options - use as cycleName
+          cycleName = baseName;
+          console.log("  ⚠️ Using doctorId as cycleName:", cycleName);
+        }
+      }
+    }
     
-    const cycleName = cycleFromDoctors?.name || "";
-    console.log("  - cycleName:", cycleName);
+    console.log("  - Final cycleId:", cycleId);
+    console.log("  - Final cycleName:", cycleName);
 
     // Extract primary doctor
     const primaryDoctorId = rawData.primary_doctor ? parseInt(rawData.primary_doctor) : undefined;
@@ -238,6 +327,16 @@ export default function CalendarPage() {
     console.log("  - raw patient_id:", rawData.patient_id);
     console.log("  - parsed patientId:", patientId);
     console.log("  - patientName:", selectedEvent.patientName);
+    console.log("  - mfn:", rawData.mfn);
+    console.log("  - mrn:", rawData.mrn);
+    console.log("  - patient_phone:", rawData.patient_phone);
+
+    // Extract couple
+    const coupleId = rawData.couple_id ? parseInt(rawData.couple_id) : undefined;
+    console.log("👫 Couple:");
+    console.log("  - raw couple_id:", rawData.couple_id);
+    console.log("  - parsed coupleId:", coupleId);
+    console.log("  - couple:", rawData.couple);
 
     // Extract services
     let requestedServices: number[] = [];
@@ -261,30 +360,53 @@ export default function CalendarPage() {
       patientPhone: rawData.patient_phone || "",
       mfn: rawData.mfn || "",
       mrn: rawData.mrn || "",
-      
+
+      // Couple Info
+      coupleId: coupleId,
+      coupleName: rawData.couple || "",
+      couplePhone: rawData.couple_phone || "",
+      coupleMrn: rawData.couple_mrn || "",
+
+      // ✅ NOW PROPERLY SET!
       cycleId: cycleId,
       cycleName: cycleName,
-      
+
       primaryDoctorId: primaryDoctorId,
       primaryDoctorName: rawData.doctor || "",
-      
+
       triggerAppDate: selectedEvent.start ? selectedEvent.start.slice(0, 10) : selectedDate?.toISOString().slice(0, 10),
       trAppointmentTime: timeFormatted,
-      
+
       requestedServices: requestedServices,
-      
+
       noOfOocytes: rawData.no_of_oocytes || rawData.oocyte || "",
       semenSource: rawData.semen_source || "",
       notes: rawData.notes || "",
-      
+      amount: rawData.amount || "",
+
+      // Retrieval-specific date fields
+      triggerDate: rawData.trigger_date || "",
+      actualTriggerDate: rawData.actual_trigger_date || "",
+
       wlUndoId: rawData.wl_undo_id,
       onthfUndoIds: rawData.onthf_undo_ids,
-      
+
       onthfState1: selectedEvent.status === "ON_THE_FLY" ? "onthefly" : "confirmed",
     };
 
     console.log("📤 Final Initial Data:");
-    console.log(JSON.stringify(initialData, null, 2));
+    console.log("  - cycleId:", initialData.cycleId);
+    console.log("  - cycleName:", initialData.cycleName);
+    console.log("  - patientId:", initialData.patientId);
+    console.log("  - patientName:", initialData.patientName);
+    console.log("  - mfn:", initialData.mfn);
+    console.log("  - coupleId:", initialData.coupleId);
+    console.log("  - coupleName:", initialData.coupleName);
+    console.log("  - primaryDoctorId:", initialData.primaryDoctorId);
+    console.log("  - amount:", initialData.amount);
+    console.log("  - requestedServices:", initialData.requestedServices);
+    console.log("  - triggerDate:", initialData.triggerDate);
+    console.log("  - actualTriggerDate:", initialData.actualTriggerDate);
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     return initialData;
@@ -292,19 +414,6 @@ export default function CalendarPage() {
 
   return (
     <div className="flex h-screen flex-col">
-      {/* <div className="bg-gray-100 px-4 py-2 text-xs border-b">
-        <strong>Debug:</strong> Date: {selectedDate?.toLocaleDateString()} |
-        View: {view} | Events: {events.length} |
-        <span className="ml-2 font-bold text-blue-600">
-          Options: C:{cycleOptions.length} D:{doctorOptions.length} P:{patientOptions.length} S:{serviceOptions.length}
-        </span>
-        {selectedEvent && (
-          <span className="ml-2 font-bold text-purple-600">
-            | Selected: {selectedEvent.id} ({selectedEvent.patientName})
-          </span>
-        )}
-      </div> */}
-
       {loading && (
         <div className="bg-emerald-50 px-4 py-2 text-center text-sm text-emerald-800">
           Loading appointments
@@ -334,6 +443,7 @@ export default function CalendarPage() {
         onClose={closeBookingPopup}
         onSave={handleSaveBooking}
         onConfirm={handleConfirmAppointment}
+        onCreateAndConfirm={handleCreateAndConfirm}
         onUndo={handleUndoAppointment}
         initialData={getInitialData()}
         doctors={doctorOptions}
